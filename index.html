@@ -1091,8 +1091,9 @@
                 document.getElementById('form-lord').value = c.lord || "Sans";
                 
                 ['Chair', 'Bête', 'Machine', 'Dame', 'Masque'].forEach(a => {
-                    document.getElementById(`form-aspect-${a.toLowerCase()}`).value = c.aspects?.[a] || 0;
-                    document.getElementById(`form-aspect-${a.toLowerCase()}-exc`).value = c.exceptional?.[a] || "";
+                    const idKey = a === 'Bête' ? 'bete' : a.toLowerCase();
+                    document.getElementById(`form-aspect-${idKey}`).value = c.aspects?.[a] || 0;
+                    document.getElementById(`form-aspect-${idKey}-exc`).value = c.exceptional?.[a] || "";
                 });
                 
                 ['defense', 'reaction', 'initiative', 'ps', 'bouclier'].forEach(s => {
@@ -1128,8 +1129,9 @@
             };
             
             ['Chair', 'Bête', 'Machine', 'Dame', 'Masque'].forEach(a => {
-                obj.aspects[a] = parseInt(document.getElementById(`form-aspect-${a.toLowerCase()}`).value) || 0;
-                obj.exceptional[a] = document.getElementById(`form-aspect-${a.toLowerCase()}-exc`).value.trim() || "-";
+                const idKey = a === 'Bête' ? 'bete' : a.toLowerCase();
+                obj.aspects[a] = parseInt(document.getElementById(`form-aspect-${idKey}`).value) || 0;
+                obj.exceptional[a] = document.getElementById(`form-aspect-${idKey}-exc`).value.trim() || "-";
             });
             
             ['defense', 'reaction', 'initiative', 'ps', 'bouclier'].forEach(s => {
