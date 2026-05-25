@@ -962,27 +962,34 @@
             window.renderActiveSheet();
         }
 
+        // Remplacement de la suppression locale par la suppression Firebase (si connecté)
+        const baseLocalDelete = window.deleteCreature;
         window.deleteCreature = async function(id) {
-            playSound('click');
+            window.playSound('click');
             const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
             
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
                     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'creatures', id);
-                    const currentCreature = window.creatures.find(item => item.id === id);
-                    if (currentCreature) {
-                        await setDoc(ref, { ...currentCreature, deleted: true });
-                        window.showToast("Données bannie du Codex de la Table.");
-                    }
+                    // Utilisation de la vraie méthode de suppression Firebase
+                    await deleteDoc(ref); 
+                    window.showToast("Données bannies du Codex de la Table.");
+                    
                     if (window.activeCreatureId === id) {
                         window.activeCreatureId = null;
                     }
+                    
+                    // Mise à jour immédiate de l'interface locale
+                    window.creatures = window.creatures.filter(c => c.id !== id);
+                    window.renderList();
+                    window.renderActiveSheet();
+                    
                 } catch (e) {
                     console.error("Firestore delete blocked, triggering local override:", e);
-                    localDelete(id);
+                    await baseLocalDelete(id);
                 }
             } else {
-                localDelete(id);
+                await baseLocalDelete(id);
             }
         };
 
