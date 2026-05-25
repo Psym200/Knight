@@ -809,122 +809,342 @@
     <!-- Notification Sceau -->
     <div id="toast" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: #faf4e5; border: 2px solid #c3a163; padding: 12px 20px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1000; font-family: 'Cinzel', serif; font-size: 0.9rem; color: #2a2015;"></div>
 
-    <!-- FIREBASE AND STORAGE MODULE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Application State
+        // État global
         window.creatures = [];
         window.activeFilter = 'all';
         window.activeCreatureId = null;
+        window.pendingDeleteId = null;
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'knight-pokedex-app-default';
         let db = null;
         let auth = null;
 
+        window.colorConfig = {
+            Chair: { color: 'var(--chair)', label: "La Chair", icon: 'fa-solid fa-droplet' },
+            Bête: { color: 'var(--bete)', label: "La Bête", icon: 'fa-solid fa-dragon' },
+            Machine: { color: 'var(--machine)', label: "La Machine", icon: 'fa-solid fa-shield-halved' },
+            Dame: { color: 'var(--dame)', label: "La Dame", icon: 'fa-solid fa-ring' },
+            Masque: { color: 'var(--masque)', label: "Le Masque", icon: 'fa-solid fa-mask' },
+            Sans: { color: 'var(--text-muted)', label: "Indépendant", icon: 'fa-solid fa-circle-question' }
+        };
+
+        // Audio
+        if (!window.audioCtx) {
+            window.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        window.playSound = function(type) {
+            try {
+                if (window.audioCtx.state === 'suspended') window.audioCtx.resume();
+                const osc = window.audioCtx.createOscillator();
+                const osc2 = window.audioCtx.createOscillator();
+                const gain = window.audioCtx.createGain();
+                osc.connect(gain);
+                osc2.connect(gain);
+                gain.connect(window.audioCtx.destination);
+                
+                if (type === 'click') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(329.63, window.audioCtx.currentTime);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(659.25, window.audioCtx.currentTime);
+                    gain.gain.setValueAtTime(0.08, window.audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, window.audioCtx.currentTime + 0.3);
+                    osc.start(); osc2.start();
+                    osc.stop(window.audioCtx.currentTime + 0.3);
+                    osc2.stop(window.audioCtx.currentTime + 0.3);
+                } else if (type === 'success') {
+                    const osc3 = window.audioCtx.createOscillator();
+                    osc3.connect(gain);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(261.63, window.audioCtx.currentTime);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(329.63, window.audioCtx.currentTime + 0.05);
+                    osc3.type = 'sine';
+                    osc3.frequency.setValueAtTime(392.00, window.audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.06, window.audioCtx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, window.audioCtx.currentTime + 0.8);
+                    osc.start(); osc2.start(); osc3.start();
+                    osc.stop(window.audioCtx.currentTime + 0.8);
+                    osc2.stop(window.audioCtx.currentTime + 0.8);
+                    osc3.stop(window.audioCtx.currentTime + 0.8);
+                }
+            } catch (e) { console.warn(e); }
+        };
+
+        // UI Utils
         window.showToast = function(message) {
             const t = document.getElementById('toast');
-            t.textContent = message;
-            t.style.display = 'block';
-            setTimeout(() => { t.style.display = 'none'; }, 4000);
+            if(t) {
+                t.textContent = message;
+                t.style.display = 'block';
+                setTimeout(() => { t.style.display = 'none'; }, 4000);
+            }
         };
 
         window.changeSyncMode = function(mode) {
-            playSound('click');
+            window.playSound('click');
             localStorage.setItem(`knight_pokedex_mode_${appId}`, mode);
             window.location.reload();
         };
 
-        // Firebase Setup with fallback controls
-        async function init() {
-            const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
-            document.getElementById('mode-select').value = savedMode;
-
-            if (savedMode === 'shared' && typeof __firebase_config !== 'undefined' && __firebase_config) {
-                try {
-                    const config = JSON.parse(__firebase_config);
-                    const app = initializeApp(config);
-                    db = getFirestore(app);
-                    auth = getAuth(app);
-
-                    // Authentication Step (Rule 3)
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-
-                    onAuthStateChanged(auth, (user) => {
-                        if (user) {
-                            listenToDatabase();
-                        } else {
-                            loadLocalFallback();
-                        }
-                    });
-                } catch (e) {
-                    console.error("Firebase fail, fallback active:", e);
-                    loadLocalFallback();
-                }
-            } else {
-                loadLocalFallback();
+        // Modale de suppression
+        window.showDeleteConfirmation = function(id) {
+            window.pendingDeleteId = id;
+            document.getElementById('confirm-modal').style.display = 'flex';
+        };
+        
+        window.closeDeleteConfirmation = function() {
+            document.getElementById('confirm-modal').style.display = 'none';
+            window.pendingDeleteId = null;
+        };
+        
+        window.confirmDelete = async function() {
+            if (window.pendingDeleteId) {
+                await window.deleteCreature(window.pendingDeleteId);
             }
-        }
+            window.closeDeleteConfirmation();
+        };
 
-        // Live Synchronizer (Rule 1 & Rule 2)
-        function listenToDatabase() {
-            // Strict Collection Path (Rule 1)
-            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'creatures');
-            const q = query(ref);
-
-            onSnapshot(q, (snap) => {
-                const data = [];
-                snap.forEach((doc) => {
-                    const docData = doc.data();
-                    // On ignore les fiches supprimées logiquement
-                    if (docData && !docData.deleted) {
-                        data.push({ id: doc.id, ...docData });
-                    }
-                });
-                window.creatures = data;
-                
-                if (window.activeCreatureId && !window.creatures.some(c => c.id === window.activeCreatureId)) {
-                    window.activeCreatureId = null;
-                }
-                
-                if (!window.activeCreatureId && window.creatures.length > 0) {
-                    window.activeCreatureId = window.creatures[0].id;
-                }
-                window.renderList();
-                window.renderActiveSheet();
-            }, (err) => {
-                console.error("Realtime sync failed, switching to local mode:", err);
-                loadLocalFallback();
+        // Filtres et Rendu
+        window.selectFilter = function(filterName) {
+            window.playSound('click');
+            window.activeFilter = filterName;
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.getAttribute('data-filter') === filterName);
             });
-        }
+            window.renderList();
+        };
+        
+        window.applyFilters = function() { window.renderList(); };
 
-        function loadLocalFallback() {
-            const raw = localStorage.getItem(`knight_pokedex_local_${appId}`);
-            if (raw) {
-                try {
-                    window.creatures = JSON.parse(raw);
-                } catch(e) {
-                    window.creatures = [];
-                }
+        window.renderList = function() {
+            const listContainer = document.getElementById('creatures-list');
+            if(!listContainer) return;
+            
+            listContainer.innerHTML = "";
+            const searchInput = document.getElementById('search-input');
+            const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : "";
+
+            const filtered = window.creatures.filter(c => {
+                if (window.activeFilter !== 'all' && c.lord !== window.activeFilter) return false;
+                if (searchVal) return (c.name || "").toLowerCase().includes(searchVal) || (c.capacities || "").toLowerCase().includes(searchVal);
+                return true;
+            });
+
+            const lordPriority = { 'Chair': 1, 'Bête': 2, 'Machine': 3, 'Dame': 4, 'Masque': 5, 'Sans': 6 };
+            filtered.sort((a, b) => {
+                const diff = (lordPriority[a.lord || 'Sans'] || 7) - (lordPriority[b.lord || 'Sans'] || 7);
+                if (diff !== 0) return diff;
+                return (a.name || "").localeCompare(b.name || "", 'fr');
+            });
+
+            if (filtered.length === 0) {
+                listContainer.innerHTML = `<div style="text-align:center; padding:20px; font-size:0.95rem; color:var(--text-muted); font-style: italic;">Aucune rature trouvée...</div>`;
+                return;
             }
 
-            if (!window.activeCreatureId && window.creatures.length > 0) {
-                window.activeCreatureId = window.creatures[0].id;
-            }
+            filtered.forEach(c => {
+                const conf = window.colorConfig[c.lord || 'Sans'] || window.colorConfig['Sans'];
+                const card = document.createElement('div');
+                card.className = `creature-card ${c.id === window.activeCreatureId ? 'active' : ''}`;
+                card.style.borderLeft = `4px solid ${conf.color}`;
+                card.onclick = () => { window.selectCreature(c.id); };
+
+                card.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
+                        <span style="font-size:0.8rem; text-transform:uppercase; font-family:'Cinzel',sans-serif; color:${conf.color};">${conf.label}</span>
+                    </div>
+                    <div style="font-family:'Cinzel',sans-serif; font-weight:700; font-size:1.1rem; color:var(--text-light); margin-bottom:8px;">${c.name}</div>
+                    <div style="display:flex; gap:12px; font-size:0.8rem; font-family:serif; color:var(--text-muted);">
+                        <span>DEF: <strong style="color:var(--border-gold)">${c.stats?.defense || 0}</strong></span>
+                        <span>PS: <strong style="color:#d946ef">${c.stats?.ps || 0}</strong></span>
+                        <span>FAIBLE: <strong style="color:#e2e8f0">${c.stats?.weakness || '-'}</strong></span>
+                    </div>
+                    <button class="creature-card-delete" onclick="event.stopPropagation(); window.showDeleteConfirmation('${c.id}');" title="Bannir du Codex">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                `;
+                listContainer.appendChild(card);
+            });
+        };
+
+        window.selectCreature = function(id) {
+            window.playSound('click');
+            window.activeCreatureId = id;
+            document.getElementById('rpg-sheet-edit').style.display = 'none';
+            document.getElementById('rpg-sheet-display').style.display = 'flex';
             window.renderList();
             window.renderActiveSheet();
-        }
+        };
+
+        window.renderActiveSheet = function() {
+            const container = document.getElementById('rpg-sheet-display');
+            if(!container) return;
+            
+            let c = window.activeCreatureId ? window.creatures.find(item => item.id === window.activeCreatureId) : null;
+            
+            if (!c) {
+                if (window.creatures.length > 0) {
+                    window.activeCreatureId = window.creatures[0].id;
+                    c = window.creatures[0];
+                } else {
+                    window.activeCreatureId = null;
+                    container.innerHTML = `
+                        <div style="padding:45px; text-align:center; color:var(--text-dark); font-family:'Cinzel',serif;">
+                            <i class="fa-solid fa-scroll" style="font-size:3.5rem; margin-bottom:15px; color:#c3a163;"></i>
+                            <p style="font-style: italic; font-size: 1.25rem; font-weight:600; margin-bottom:10px;">Le Codex est vierge</p>
+                            <p style="font-size:1rem; color:var(--text-muted);">Appuyez sur "Inscrire une créature" pour commencer à documenter l'Anathème.</p>
+                        </div>`;
+                    return;
+                }
+            }
+
+            const conf = window.colorConfig[c.lord || 'Sans'] || window.colorConfig['Sans'];
+            let aspectsHtml = "";
+            ['Chair', 'Bête', 'Machine', 'Dame', 'Masque'].forEach(aspectName => {
+                const val = c.aspects ? (c.aspects[aspectName] || 0) : 0;
+                const excValue = c.exceptional ? (c.exceptional[aspectName] || "-") : "-";
+                const color = window.colorConfig[aspectName].color;
+                const hasExc = excValue && excValue !== "-";
+                aspectsHtml += `
+                    <div class="aspect-block" style="border-top: 4px solid ${color};">
+                        <div class="aspect-block-title">${aspectName}</div>
+                        <div class="aspect-block-value" style="color: ${color}">${val}</div>
+                        ${hasExc ? `<div class="aspect-block-exc" title="${excValue}">${excValue}</div>` : `<div style="height: 24px; color: #8c765c; font-size:0.85rem; font-style:italic;">-</div>`}
+                    </div>`;
+            });
+
+            container.innerHTML = `
+                <div class="rpg-header">
+                    <div>
+                        <span style="font-size: 0.85rem; color: #7c6853; font-family: 'Cinzel', serif; letter-spacing: 1px;">ANALYSE TACTIQUE // CODEX DE LA TABLE RONDE</span>
+                        <h2 class="rpg-header-title">${c.name}</h2>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <span class="rpg-lord-badge" style="color: ${conf.color}">${conf.label}</span>
+                    </div>
+                </div>
+                <div class="rpg-content">
+                    <div>
+                        <h3 style="font-family:'Cinzel',serif; font-size:1.1rem; font-weight: bold; color:var(--text-dark); margin-bottom:12px; border-bottom: 1px solid #dfd5be; padding-bottom: 5px;">
+                            <i class="fa-solid fa-shield" style="color:#c3a163"></i> Aspects
+                        </h3>
+                        <div class="aspects-grid">${aspectsHtml}</div>
+                    </div>
+                    <div>
+                        <h3 style="font-family:'Cinzel',serif; font-size:1.1rem; font-weight: bold; color:var(--text-dark); margin-bottom:12px; border-bottom: 1px solid #dfd5be; padding-bottom: 5px;">
+                            <i class="fa-solid fa-gavel" style="color:#c3a163"></i> Caractéristiques de Combat
+                        </h3>
+                        <div class="stats-banner">
+                            <div class="stat-item"><div class="stat-item-label">Défense</div><div class="stat-item-value">${c.stats?.defense || 0}</div></div>
+                            <div class="stat-item"><div class="stat-item-label">Réaction</div><div class="stat-item-value">${c.stats?.reaction || 0}</div></div>
+                            <div class="stat-item"><div class="stat-item-label">Initiative</div><div class="stat-item-value">${c.stats?.initiative || 0}</div></div>
+                            <div class="stat-item"><div class="stat-item-label">Santé (PS)</div><div class="stat-item-value" style="color:#a62626">${c.stats?.ps || 0}</div></div>
+                            <div class="stat-item"><div class="stat-item-label">Bouclier</div><div class="stat-item-value">${c.stats?.bouclier || 0}</div></div>
+                            <div class="stat-item"><div class="stat-item-label whitespace-nowrap">Point Faible</div><div class="stat-item-value" style="color:#5c2c7d; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 4px;">${c.stats?.weakness || '-'}</div></div>
+                        </div>
+                    </div>
+                    <div class="arsenal-container">
+                        <div class="weapon-card">
+                            <div class="weapon-card-title" style="color: var(--bete); border-color: var(--bete);"><i class="fa-solid fa-hand-fist"></i> Arme de contact</div>
+                            <p style="font-size: 1.05rem; line-height: 1.5; color: var(--text-dark); white-space: pre-wrap; font-style: italic;">${c.melee || "Aucun contact enregistré."}</p>
+                        </div>
+                        <div class="weapon-card">
+                            <div class="weapon-card-title" style="color: var(--machine); border-color: var(--machine);"><i class="fa-solid fa-crosshairs"></i> Arme à distance</div>
+                            <p style="font-size: 1.05rem; line-height: 1.5; color: var(--text-dark); white-space: pre-wrap; font-style: italic;">${c.ranged || "Aucun projectile enregistré."}</p>
+                        </div>
+                    </div>
+                    <div class="capacities-card">
+                        <div class="capacities-title"><i class="fa-solid fa-scroll"></i> Capacités et Notes</div>
+                        <p style="font-size: 1.05rem; line-height: 1.6; color: #3c3225; white-space: pre-wrap; font-family: serif;">${c.capacities || "Aucune rumeur ou fait d'armes répertorié."}</p>
+                    </div>
+                    <div style="border-top: 2px solid #2a2015; padding-top: 20px; display:flex; justify-content:space-between; align-items:center;">
+                        <button onclick="window.showDeleteConfirmation('${c.id}')" class="rpg-btn rpg-btn-danger"><i class="fa-solid fa-ban"></i> Bannir du Codex</button>
+                        <button onclick="window.toggleFormMode('edit')" class="rpg-btn rpg-btn-primary"><i class="fa-solid fa-pen-fancy"></i> Enluminer le parchemin</button>
+                    </div>
+                </div>`;
+        };
+
+        window.toggleFormMode = function(mode) {
+            window.playSound('click');
+            const display = document.getElementById('rpg-sheet-display');
+            const edit = document.getElementById('rpg-sheet-edit');
+            const form = document.getElementById('creature-form');
+
+            if (mode === 'create') {
+                form.reset();
+                document.getElementById('form-id').value = "";
+                document.getElementById('edit-mode-title').textContent = "Inscrire une nouvelle créature";
+                display.style.display = 'none';
+                edit.style.display = 'flex';
+            } else if (mode === 'edit') {
+                const c = window.creatures.find(item => item.id === window.activeCreatureId);
+                if (!c) return;
+                document.getElementById('form-id').value = c.id;
+                document.getElementById('edit-mode-title').textContent = "Réviser le manuscrit : " + c.name;
+                document.getElementById('form-name').value = c.name || "";
+                document.getElementById('form-lord').value = c.lord || "Sans";
+                
+                ['Chair', 'Bête', 'Machine', 'Dame', 'Masque'].forEach(a => {
+                    document.getElementById(`form-aspect-${a.toLowerCase()}`).value = c.aspects?.[a] || 0;
+                    document.getElementById(`form-aspect-${a.toLowerCase()}-exc`).value = c.exceptional?.[a] || "";
+                });
+                
+                ['defense', 'reaction', 'initiative', 'ps', 'bouclier'].forEach(s => {
+                    document.getElementById(`form-stat-${s}`).value = c.stats?.[s] || 0;
+                });
+                document.getElementById('form-stat-weakness').value = c.stats?.weakness || "";
+                
+                document.getElementById('form-melee').value = c.melee || "";
+                document.getElementById('form-ranged').value = c.ranged || "";
+                document.getElementById('form-capacities').value = c.capacities || "";
+                
+                display.style.display = 'none';
+                edit.style.display = 'flex';
+            }
+        };
+
+        window.cancelEdit = function() {
+            window.playSound('click');
+            document.getElementById('rpg-sheet-edit').style.display = 'none';
+            document.getElementById('rpg-sheet-display').style.display = 'flex';
+        };
+
+        window.saveData = async function(event) {
+            event.preventDefault();
+            const obj = {
+                id: document.getElementById('form-id').value || null,
+                name: document.getElementById('form-name').value.trim(),
+                lord: document.getElementById('form-lord').value,
+                aspects: {}, exceptional: {}, stats: {},
+                melee: document.getElementById('form-melee').value.trim(),
+                ranged: document.getElementById('form-ranged').value.trim(),
+                capacities: document.getElementById('form-capacities').value.trim()
+            };
+            
+            ['Chair', 'Bête', 'Machine', 'Dame', 'Masque'].forEach(a => {
+                obj.aspects[a] = parseInt(document.getElementById(`form-aspect-${a.toLowerCase()}`).value) || 0;
+                obj.exceptional[a] = document.getElementById(`form-aspect-${a.toLowerCase()}-exc`).value.trim() || "-";
+            });
+            
+            ['defense', 'reaction', 'initiative', 'ps', 'bouclier'].forEach(s => {
+                obj.stats[s] = parseInt(document.getElementById(`form-stat-${s}`).value) || 0;
+            });
+            obj.stats.weakness = document.getElementById('form-stat-weakness').value.trim() || "-";
+
+            document.getElementById('rpg-sheet-edit').style.display = 'none';
+            document.getElementById('rpg-sheet-display').style.display = 'flex';
+            await window.saveCreature(obj);
+        };
 
         window.saveCreature = async function(obj) {
-            playSound('success');
+            window.playSound('success');
             const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
-            
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
                     const docId = obj.id || crypto.randomUUID();
@@ -947,14 +1167,12 @@
             const docId = obj.id || crypto.randomUUID();
             obj.id = docId;
             obj.updatedAt = Date.now();
-
             const index = window.creatures.findIndex(c => c.id === docId);
             if (index > -1) {
                 window.creatures[index] = obj;
             } else {
                 window.creatures.push(obj);
             }
-
             localStorage.setItem(`knight_pokedex_local_${appId}`, JSON.stringify(window.creatures));
             window.activeCreatureId = docId;
             window.showToast("Rapport consigné localement.");
@@ -962,25 +1180,19 @@
             window.renderActiveSheet();
         }
 
-        // Suppression Firebase ou Local
         window.deleteCreature = async function(id) {
-            playSound('click');
+            window.playSound('click');
             const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
-            
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
                     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'creatures', id);
                     await deleteDoc(ref); 
                     window.showToast("Données bannies du Codex de la Table.");
-                    
-                    if (window.activeCreatureId === id) {
-                        window.activeCreatureId = null;
-                    }
+                    if (window.activeCreatureId === id) window.activeCreatureId = null;
                     
                     window.creatures = window.creatures.filter(c => c.id !== id);
                     window.renderList();
                     window.renderActiveSheet();
-                    
                 } catch (e) {
                     console.error("Firestore delete blocked, triggering local override:", e);
                     localDelete(id);
@@ -996,402 +1208,82 @@
             window.showToast("Fiche rayée de vos parchemins locaux.");
             
             if (window.activeCreatureId === id) {
-                if (window.creatures.length > 0) {
-                    window.activeCreatureId = window.creatures[0].id;
-                } else {
-                    window.activeCreatureId = null;
-                }
+                window.activeCreatureId = window.creatures.length > 0 ? window.creatures[0].id : null;
             }
             window.renderList();
             window.renderActiveSheet();
         }
 
-        function localDelete(id) {
-            window.creatures = window.creatures.filter(c => c.id !== id);
-            localStorage.setItem(`knight_pokedex_local_${appId}`, JSON.stringify(window.creatures));
-            window.showToast("Fiche rayée de vos parchemins locaux.");
-            
-            if (window.activeCreatureId === id) {
-                if (window.creatures.length > 0) {
-                    window.activeCreatureId = window.creatures[0].id;
-                } else {
+        // Init Firebase & Sync
+        function listenToDatabase() {
+            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'creatures');
+            onSnapshot(query(ref), (snap) => {
+                const data = [];
+                snap.forEach((doc) => {
+                    const docData = doc.data();
+                    if (docData && !docData.deleted) data.push({ id: doc.id, ...docData });
+                });
+                window.creatures = data;
+                
+                if (window.activeCreatureId && !window.creatures.some(c => c.id === window.activeCreatureId)) {
                     window.activeCreatureId = null;
                 }
+                if (!window.activeCreatureId && window.creatures.length > 0) {
+                    window.activeCreatureId = window.creatures[0].id;
+                }
+                
+                window.renderList();
+                window.renderActiveSheet();
+            }, (err) => {
+                console.error("Realtime sync failed, switching to local mode:", err);
+                loadLocalFallback();
+            });
+        }
+
+        function loadLocalFallback() {
+            const raw = localStorage.getItem(`knight_pokedex_local_${appId}`);
+            if (raw) {
+                try { window.creatures = JSON.parse(raw); } catch(e) { window.creatures = []; }
+            }
+            if (!window.activeCreatureId && window.creatures.length > 0) {
+                window.activeCreatureId = window.creatures[0].id;
             }
             window.renderList();
             window.renderActiveSheet();
+        }
+
+        async function init() {
+            const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
+            const selectElem = document.getElementById('mode-select');
+            if (selectElem) selectElem.value = savedMode;
+
+            if (savedMode === 'shared' && typeof __firebase_config !== 'undefined' && __firebase_config) {
+                try {
+                    const config = JSON.parse(__firebase_config);
+                    const app = initializeApp(config);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) listenToDatabase();
+                        else loadLocalFallback();
+                    });
+                } catch (e) {
+                    console.error("Firebase fail, fallback active:", e);
+                    loadLocalFallback();
+                }
+            } else {
+                loadLocalFallback();
+            }
         }
 
         init();
-    </script>
-
-    <!-- LOGIQUE DE RENDU & DESIGN GRIMOIRE -->
-    <script>
-        window.colorConfig = {
-            Chair: { color: 'var(--chair)', label: "La Chair", icon: 'fa-solid fa-droplet' },
-            Bête: { color: 'var(--bete)', label: "La Bête", icon: 'fa-solid fa-dragon' },
-            Machine: { color: 'var(--machine)', label: "La Machine", icon: 'fa-solid fa-shield-halved' },
-            Dame: { color: 'var(--dame)', label: "La Dame", icon: 'fa-solid fa-ring' },
-            Masque: { color: 'var(--masque)', label: "Le Masque", icon: 'fa-solid fa-mask' },
-            Sans: { color: 'var(--text-muted)', label: "Indépendant", icon: 'fa-solid fa-circle-question' }
-        };
-
-        window.pendingDeleteId = null;
-
-        window.showDeleteConfirmation = function(id) {
-            window.pendingDeleteId = id;
-            document.getElementById('confirm-modal').style.display = 'flex';
-        };
-
-        window.closeDeleteConfirmation = function() {
-            document.getElementById('confirm-modal').style.display = 'none';
-            window.pendingDeleteId = null;
-        };
-
-        window.confirmDelete = async function() {
-            if (window.pendingDeleteId) {
-                await window.deleteCreature(window.pendingDeleteId);
-            }
-            window.closeDeleteConfirmation();
-        };
-
-        window.selectFilter = function(filterName) {
-            playSound('click');
-            window.activeFilter = filterName;
-            
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                if (btn.getAttribute('data-filter') === filterName) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                }
-            });
-
-            window.renderList();
-        };
-
-        window.applyFilters = function() {
-            window.renderList();
-        };
-
-        window.renderList = function() {
-            const listContainer = document.getElementById('creatures-list');
-            listContainer.innerHTML = "";
-
-            const searchVal = document.getElementById('search-input').value.toLowerCase().trim();
-
-            const filtered = window.creatures.filter(c => {
-                if (window.activeFilter !== 'all' && c.lord !== window.activeFilter) return false;
-                if (searchVal) {
-                    return (c.name || "").toLowerCase().includes(searchVal) ||
-                           (c.capacities || "").toLowerCase().includes(searchVal);
-                }
-                return true;
-            });
-
-            // Tri par Seigneur (Lord Priority) puis par ordre alphabétique du Nom
-            const lordPriority = {
-                'Chair': 1,
-                'Bête': 2,
-                'Machine': 3,
-                'Dame': 4,
-                'Masque': 5,
-                'Sans': 6
-            };
-
-            filtered.sort((a, b) => {
-                const lordA = a.lord || 'Sans';
-                const lordB = b.lord || 'Sans';
-                
-                const priorityA = lordPriority[lordA] || 7;
-                const priorityB = lordPriority[lordB] || 7;
-                
-                if (priorityA !== priorityB) {
-                    return priorityA - priorityB;
-                }
-                
-                const nameA = (a.name || "").toLowerCase();
-                const nameB = (b.name || "").toLowerCase();
-                return nameA.localeCompare(nameB, 'fr');
-            });
-
-            if (filtered.length === 0) {
-                listContainer.innerHTML = `<div style="text-align:center; padding:20px; font-size:0.95rem; color:var(--text-muted); font-style: italic;">Aucune rature trouvée...</div>`;
-                return;
-            }
-
-            filtered.forEach(c => {
-                const conf = window.colorConfig[c.lord || 'Sans'] || window.colorConfig['Sans'];
-                const card = document.createElement('div');
-                card.className = `creature-card ${c.id === window.activeCreatureId ? 'active' : ''}`;
-                card.style.borderLeft = `4px solid ${conf.color}`;
-                card.onclick = () => { window.selectCreature(c.id); };
-
-                card.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 5px;">
-                        <span style="font-size:0.8rem; text-transform:uppercase; font-family:'Cinzel',sans-serif; color:${conf.color};">
-                            ${conf.label}
-                        </span>
-                    </div>
-                    <div style="font-family:'Cinzel',sans-serif; font-weight:700; font-size:1.1rem; color:var(--text-light); margin-bottom:8px;">${c.name}</div>
-                    <div style="display:flex; gap:12px; font-size:0.8rem; font-family:serif; color:var(--text-muted);">
-                        <span>DEF: <strong style="color:var(--border-gold)">${c.stats?.defense || 0}</strong></span>
-                        <span>PS: <strong style="color:#d946ef">${c.stats?.ps || 0}</strong></span>
-                        <span>FAIBLE: <strong style="color:#e2e8f0">${c.stats?.weakness || '-'}</strong></span>
-                    </div>
-                    <button class="creature-card-delete" onclick="event.stopPropagation(); window.showDeleteConfirmation('${c.id}');" title="Bannir du Codex">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                `;
-                listContainer.appendChild(card);
-            });
-        };
-
-        window.selectCreature = function(id) {
-            playSound('click');
-            window.activeCreatureId = id;
-            
-            document.getElementById('rpg-sheet-edit').style.display = 'none';
-            document.getElementById('rpg-sheet-display').style.display = 'flex';
-
-            window.renderList();
-            window.renderActiveSheet();
-        };
-
-        window.renderActiveSheet = function() {
-            const container = document.getElementById('rpg-sheet-display');
-            
-            // Validation de l'existence de la créature active
-            let c = window.activeCreatureId ? window.creatures.find(item => item.id === window.activeCreatureId) : null;
-            
-            if (!c) {
-                if (window.creatures.length > 0) {
-                    window.activeCreatureId = window.creatures[0].id;
-                    c = window.creatures[0];
-                } else {
-                    window.activeCreatureId = null;
-                    container.innerHTML = `
-                        <div style="padding:45px; text-align:center; color:var(--text-dark); font-family:'Cinzel',serif;">
-                            <i class="fa-solid fa-scroll" style="font-size:3.5rem; margin-bottom:15px; color:#c3a163;"></i>
-                            <p style="font-style: italic; font-size: 1.25rem; font-weight:600; margin-bottom:10px;">Le Codex est vierge</p>
-                            <p style="font-size:1rem; color:var(--text-muted);">Appuyez sur "Inscrire une créature" pour commencer à documenter l'Anathème.</p>
-                        </div>
-                    `;
-                    return;
-                }
-            }
-
-            const conf = window.colorConfig[c.lord || 'Sans'] || window.colorConfig['Sans'];
-
-            // Assemblage des écussons d'aspects
-            let aspectsHtml = "";
-            const aspectOrder = ['Chair', 'Bête', 'Machine', 'Dame', 'Masque'];
-            aspectOrder.forEach(aspectName => {
-                const val = c.aspects ? (c.aspects[aspectName] || 0) : 0;
-                const excValue = c.exceptional ? (c.exceptional[aspectName] || "-") : "-";
-                const color = window.colorConfig[aspectName].color;
-
-                const hasExc = excValue && excValue !== "-";
-
-                aspectsHtml += `
-                    <div class="aspect-block" style="border-top: 4px solid ${color};">
-                        <div class="aspect-block-title">${aspectName}</div>
-                        <div class="aspect-block-value" style="color: ${color}">${val}</div>
-                        ${hasExc ? `<div class="aspect-block-exc" title="${excValue}">${excValue}</div>` : `<div style="height: 24px; color: #8c765c; font-size:0.85rem; font-style:italic;">-</div>`}
-                    </div>
-                `;
-            });
-
-            container.innerHTML = `
-                <div class="rpg-header">
-                    <div>
-                        <span style="font-size: 0.85rem; color: #7c6853; font-family: 'Cinzel', serif; letter-spacing: 1px;">ANALYSE TACTIQUE // CODEX DE LA TABLE RONDE</span>
-                        <h2 class="rpg-header-title">${c.name}</h2>
-                    </div>
-                    <div class="flex items-center gap-3">
-                        <span class="rpg-lord-badge" style="color: ${conf.color}">${conf.label}</span>
-                    </div>
-                </div>
-
-                <div class="rpg-content">
-                    <!-- Écussons des Aspects -->
-                    <div>
-                        <h3 style="font-family:'Cinzel',serif; font-size:1.1rem; font-weight: bold; color:var(--text-dark); margin-bottom:12px; border-bottom: 1px solid #dfd5be; padding-bottom: 5px;">
-                            <i class="fa-solid fa-shield" style="color:#c3a163"></i> Aspects
-                        </h3>
-                        <div class="aspects-grid">
-                            ${aspectsHtml}
-                        </div>
-                    </div>
-
-                    <!-- Valeurs Dérivées -->
-                    <div>
-                        <h3 style="font-family:'Cinzel',serif; font-size:1.1rem; font-weight: bold; color:var(--text-dark); margin-bottom:12px; border-bottom: 1px solid #dfd5be; padding-bottom: 5px;">
-                            <i class="fa-solid fa-gavel" style="color:#c3a163"></i> Caractéristiques de Combat
-                        </h3>
-                        <div class="stats-banner">
-                            <div class="stat-item">
-                                <div class="stat-item-label">Défense</div>
-                                <div class="stat-item-value">${c.stats?.defense || 0}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-item-label">Réaction</div>
-                                <div class="stat-item-value">${c.stats?.reaction || 0}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-item-label">Initiative</div>
-                                <div class="stat-item-value">${c.stats?.initiative || 0}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-item-label">Santé (PS)</div>
-                                <div class="stat-item-value" style="color:#a62626">${c.stats?.ps || 0}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-item-label">Bouclier</div>
-                                <div class="stat-item-value">${c.stats?.bouclier || 0}</div>
-                            </div>
-                            <div class="stat-item">
-                                <div class="stat-item-label whitespace-nowrap">Point Faible</div>
-                                <div class="stat-item-value" style="color:#5c2c7d; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-top: 4px;">${c.stats?.weakness || '-'}</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Armement héraldique -->
-                    <div class="arsenal-container">
-                        <div class="weapon-card">
-                            <div class="weapon-card-title" style="color: var(--bete); border-color: var(--bete);">
-                                <i class="fa-solid fa-hand-fist"></i> Arme de contact
-                            </div>
-                            <p style="font-size: 1.05rem; line-height: 1.5; color: var(--text-dark); white-space: pre-wrap; font-style: italic;">${c.melee || "Aucun contact enregistré."}</p>
-                        </div>
-                        <div class="weapon-card">
-                            <div class="weapon-card-title" style="color: var(--machine); border-color: var(--machine);">
-                                <i class="fa-solid fa-crosshairs"></i> Arme à distance
-                            </div>
-                            <p style="font-size: 1.05rem; line-height: 1.5; color: var(--text-dark); white-space: pre-wrap; font-style: italic;">${c.ranged || "Aucun projectile enregistré."}</p>
-                        </div>
-                    </div>
-
-                    <!-- Grimoire de Capacités -->
-                    <div class="capacities-card">
-                        <div class="capacities-title"><i class="fa-solid fa-scroll"></i> Capacités et Notes</div>
-                        <p style="font-size: 1.05rem; line-height: 1.6; color: #3c3225; white-space: pre-wrap; font-family: serif;">${c.capacities || "Aucune rumeur ou fait d'armes répertorié."}</p>
-                    </div>
-
-                    <!-- Actions -->
-                    <div style="border-top: 2px solid #2a2015; padding-top: 20px; display:flex; justify-content:space-between; align-items:center;">
-                        <button onclick="window.showDeleteConfirmation('${c.id}')" class="rpg-btn rpg-btn-danger">
-                            <i class="fa-solid fa-ban"></i> Bannir du Codex
-                        </button>
-                        <button onclick="window.toggleFormMode('edit')" class="rpg-btn rpg-btn-primary">
-                            <i class="fa-solid fa-pen-fancy"></i> Enluminer le parchemin
-                        </button>
-                    </div>
-                </div>
-            `;
-        };
-
-        // Commutateur Formulaire / Affichage
-        window.toggleFormMode = function(mode) {
-            playSound('click');
-            const display = document.getElementById('rpg-sheet-display');
-            const edit = document.getElementById('rpg-sheet-edit');
-            const form = document.getElementById('creature-form');
-
-            if (mode === 'create') {
-                form.reset();
-                document.getElementById('form-id').value = "";
-                document.getElementById('edit-mode-title').textContent = "Inscrire une nouvelle créature";
-                display.style.display = 'none';
-                edit.style.display = 'flex';
-            } else if (mode === 'edit') {
-                const c = window.creatures.find(item => item.id === window.activeCreatureId);
-                if (!c) return;
-
-                document.getElementById('form-id').value = c.id;
-                document.getElementById('edit-mode-title').textContent = "Réviser le manuscrit : " + c.name;
-
-                // Champs de saisie
-                document.getElementById('form-name').value = c.name || "";
-                document.getElementById('form-lord').value = c.lord || "Sans";
-
-                // Aspects
-                document.getElementById('form-aspect-chair').value = c.aspects?.Chair || 0;
-                document.getElementById('form-aspect-chair-exc').value = c.exceptional?.Chair || "";
-                document.getElementById('form-aspect-bete').value = c.aspects?.Bête || 0;
-                document.getElementById('form-aspect-bete-exc').value = c.exceptional?.Bête || "";
-                document.getElementById('form-aspect-machine').value = c.aspects?.Machine || 0;
-                document.getElementById('form-aspect-machine-exc').value = c.exceptional?.Machine || "";
-                document.getElementById('form-aspect-dame').value = c.aspects?.Dame || 0;
-                document.getElementById('form-aspect-dame-exc').value = c.exceptional?.Dame || "";
-                document.getElementById('form-aspect-masque').value = c.aspects?.Masque || 0;
-                document.getElementById('form-aspect-masque-exc').value = c.exceptional?.Masque || "";
-
-                // Caractéristiques
-                document.getElementById('form-stat-defense').value = c.stats?.defense || 0;
-                document.getElementById('form-stat-reaction').value = c.stats?.reaction || 0;
-                document.getElementById('form-stat-initiative').value = c.stats?.initiative || 0;
-                document.getElementById('form-stat-ps').value = c.stats?.ps || 0;
-                document.getElementById('form-stat-bouclier').value = c.stats?.bouclier || 0;
-                document.getElementById('form-stat-weakness').value = c.stats?.weakness || "";
-
-                // Écrits
-                document.getElementById('form-melee').value = c.melee || "";
-                document.getElementById('form-ranged').value = c.ranged || "";
-                document.getElementById('form-capacities').value = c.capacities || "";
-
-                display.style.display = 'none';
-                edit.style.display = 'flex';
-            }
-        };
-
-        window.cancelEdit = function() {
-            playSound('click');
-            document.getElementById('rpg-sheet-edit').style.display = 'none';
-            document.getElementById('rpg-sheet-display').style.display = 'flex';
-        };
-
-        // Soumission
-        window.saveData = async function(event) {
-            event.preventDefault();
-            
-            const obj = {
-                id: document.getElementById('form-id').value || null,
-                name: document.getElementById('form-name').value.trim(),
-                lord: document.getElementById('form-lord').value,
-                aspects: {
-                    Chair: parseInt(document.getElementById('form-aspect-chair').value) || 0,
-                    Bête: parseInt(document.getElementById('form-aspect-bete').value) || 0,
-                    Machine: parseInt(document.getElementById('form-aspect-machine').value) || 0,
-                    Dame: parseInt(document.getElementById('form-aspect-dame').value) || 0,
-                    Masque: parseInt(document.getElementById('form-aspect-masque').value) || 0
-                },
-                exceptional: {
-                    Chair: document.getElementById('form-aspect-chair-exc').value.trim() || "-",
-                    Bête: document.getElementById('form-aspect-bete-exc').value.trim() || "-",
-                    Machine: document.getElementById('form-aspect-machine-exc').value.trim() || "-",
-                    Dame: document.getElementById('form-aspect-dame-exc').value.trim() || "-",
-                    Masque: document.getElementById('form-aspect-masque-exc').value.trim() || "-"
-                },
-                stats: {
-                    defense: parseInt(document.getElementById('form-stat-defense').value) || 0,
-                    reaction: parseInt(document.getElementById('form-stat-reaction').value) || 0,
-                    initiative: parseInt(document.getElementById('form-stat-initiative').value) || 0,
-                    ps: parseInt(document.getElementById('form-stat-ps').value) || 0,
-                    bouclier: parseInt(document.getElementById('form-stat-bouclier').value) || 0,
-                    weakness: document.getElementById('form-stat-weakness').value.trim() || "-"
-                },
-                melee: document.getElementById('form-melee').value.trim(),
-                ranged: document.getElementById('form-ranged').value.trim(),
-                capacities: document.getElementById('form-capacities').value.trim()
-            };
-
-            document.getElementById('rpg-sheet-edit').style.display = 'none';
-            document.getElementById('rpg-sheet-display').style.display = 'flex';
-
-            await window.saveCreature(obj);
-        };
     </script>
 </body>
 </html>
