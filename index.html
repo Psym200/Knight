@@ -1180,29 +1180,44 @@
             window.renderActiveSheet();
         }
 
+        window.confirmDelete = async function() {
+            console.log("1. Clic modale. ID en attente :", window.pendingDeleteId);
+            if (window.pendingDeleteId) {
+                await window.deleteCreature(window.pendingDeleteId);
+            }
+            window.closeDeleteConfirmation();
+        };
+
         window.deleteCreature = async function(id) {
+            console.log("2. Début deleteCreature. ID :", id);
             window.playSound('click');
             const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
+            console.log("3. Mode actif :", savedMode);
+            
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
+                    console.log("4a. Tentative de suppression sur Firebase...");
                     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'creatures', id);
                     await deleteDoc(ref); 
+                    console.log("5. Succès Firebase");
                     window.showToast("Données bannies du Codex de la Table.");
-                    if (window.activeCreatureId === id) window.activeCreatureId = null;
                     
+                    if (window.activeCreatureId === id) window.activeCreatureId = null;
                     window.creatures = window.creatures.filter(c => c.id !== id);
                     window.renderList();
                     window.renderActiveSheet();
                 } catch (e) {
-                    console.error("Firestore delete blocked, triggering local override:", e);
+                    console.error("Erreur bloquante Firebase :", e);
                     localDelete(id);
                 }
             } else {
+                console.log("4b. Mode local ou Firebase inactif, passage à localDelete");
                 localDelete(id);
             }
         };
 
         function localDelete(id) {
+            console.log("-> Exécution de localDelete");
             window.creatures = window.creatures.filter(c => c.id !== id);
             localStorage.setItem(`knight_pokedex_local_${appId}`, JSON.stringify(window.creatures));
             window.showToast("Fiche rayée de vos parchemins locaux.");
@@ -1212,6 +1227,7 @@
             }
             window.renderList();
             window.renderActiveSheet();
+            console.log("-> UI mise à jour après suppression locale");
         }
 
         // Init Firebase & Sync
