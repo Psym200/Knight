@@ -403,30 +403,29 @@
     <div id="write-modal" class="rpg-modal" onclick="if(event.target === this) window.toggleModal(false)">
         <div class="rpg-modal-content">
             <div class="p-6 border-b border-slate-700 flex justify-between items-center" style="background-color: #080f1e;">
-                <h3 class="text-lg font-bold font-serif uppercase tracking-wider text-cyan-400" style="font-family: 'Orbitron', serif;">Consigner Rapport de Section</h3>
+                <h3 class="text-lg font-bold font-serif uppercase tracking-wider text-cyan-400" style="font-family: 'Orbitron', serif;">Nouvel article</h3>
                 <button onclick="window.toggleModal(false)" class="text-slate-400 hover:text-cyan-400"><i class="fa-solid fa-circle-xmark text-xl"></i></button>
             </div>
             <form id="chronicle-form" onsubmit="window.saveData(event)" class="p-6 flex flex-col gap-4 overflow-y-auto">
                 <input type="hidden" id="form-id">
-                
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Intitulé du Dossier *</label>
+                    <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Nom de l'article</label>
                     <input type="text" id="form-title" required class="parchment-input" placeholder="Ex: ALERTE GARDE : ACTIVITÉ DE LA CHAIR A ROME">
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Officier d'Émission *</label>
+                        <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Auteur</label>
                         <input type="text" id="form-author" required class="parchment-input" placeholder="Ex: Coterie Cyclope">
                     </div>
                     <div class="flex flex-col gap-1.5">
-                        <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Date / Fréquence *</label>
+                        <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Date</label>
                         <input type="text" id="form-date" required class="parchment-input" placeholder="Ex: 11 Janvier 2038 - 07h13">
                     </div>
                 </div>
 
                 <div class="flex flex-col gap-1.5">
-                    <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Transmission / Fait tactique *</label>
+                    <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Article</label>
                     <textarea id="form-content" required rows="10" class="parchment-input resize-none" placeholder="Données interceptées, menaces de l'Anathème ou compte-rendu d'opération..."></textarea>
                 </div>
 
