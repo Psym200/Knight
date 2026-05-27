@@ -413,6 +413,15 @@
                     <input type="text" id="form-title" required class="parchment-input" placeholder="Ex: ALERTE GARDE : ACTIVITÉ DE LA CHAIR A ROME">
                 </div>
 
+    <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Niveau de priorité *</label>
+            <select id="form-priority" class="parchment-input">
+                <option value="green">COMMUN (Vert)</option>
+                <option value="orange">A NOTIFIER (Orange)</option>
+                <option value="red">PRIORITAIRE (Rouge)</option>
+            </select>
+    </div>
+
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div class="flex flex-col gap-1.5">
                         <label class="text-xs font-bold uppercase text-slate-400" style="font-family: 'Orbitron', serif;">Auteur</label>
@@ -539,47 +548,36 @@
         };
 
         window.renderList = function() {
-            const listContainer = document.getElementById('creatures-list');
-            if (!listContainer) return;
-            listContainer.innerHTML = "";
+    const listContainer = document.getElementById('creatures-list');
+    if (!listContainer) return;
+    listContainer.innerHTML = "";
 
-            const searchInput = document.getElementById('search-input');
-            const searchVal = searchInput ? searchInput.value.toLowerCase().trim() : "";
+    const priorityColors = { 'red': '#ef4444', 'orange': '#f59e0b', 'green': '#00ff66' };
+    const searchVal = document.getElementById('search-input')?.value.toLowerCase() || "";
 
-            const filtered = window.creatures.filter(c => {
-                if (searchVal) {
-                    return (c.title || "").toLowerCase().includes(searchVal) ||
-                           (c.content || "").toLowerCase().includes(searchVal) ||
-                           (c.author || "").toLowerCase().includes(searchVal);
-                }
-                return true;
-            });
+    const filtered = window.creatures.filter(c => 
+        (c.title || "").toLowerCase().includes(searchVal) || 
+        (c.content || "").toLowerCase().includes(searchVal)
+    );
 
-            filtered.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    filtered.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
 
-            if (filtered.length === 0) {
-                listContainer.innerHTML = `<div style="text-align:center; padding:20px; font-size:0.9rem; color:var(--text-muted); font-style: italic; font-family: 'Share Tech Mono', monospace;">--- AUCUN ARTICLE TROUVÉ ---</div>`;
-                return;
-            }
+    filtered.forEach(c => {
+        const pColor = priorityColors[c.priority] || '#ffffff';
+        const card = document.createElement('div');
+        card.className = `article-card ${c.id === window.activeCreatureId ? 'active' : ''}`;
+        card.onclick = () => { window.selectArticle(c.id); };
 
-            filtered.forEach(c => {
-                const card = document.createElement('div');
-                card.className = `article-card ${c.id === window.activeCreatureId ? 'active' : ''}`;
-                card.onclick = () => { window.selectArticle(c.id); };
-
-                card.innerHTML = `
-                    <div style="font-family:'Orbitron',sans-serif; font-weight:700; font-size:0.95rem; color:#ffffff; margin-bottom:8px; tracking: 0.5px;">${c.title}</div>
-                    <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-family:'Share Tech Mono', monospace; color:var(--text-muted);">
-                        <span>ÉMETTEUR : <strong style="color: var(--color-accent-green);">${c.author}</strong></span>
-                        <span>${c.date}</span>
-                    </div>
-                    <button class="article-card-delete" onclick="event.stopPropagation(); window.showDeleteConfirmation('${c.id}');" title="Purger le signal">
-                        <i class="fa-solid fa-xmark"></i>
-                    </button>
-                `;
-                listContainer.appendChild(card);
-            });
-        };
+        card.innerHTML = `
+            <div style="font-family:'Orbitron',sans-serif; font-weight:700; font-size:0.95rem; color:${pColor}; margin-bottom:8px;">${c.title}</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-family:'Share Tech Mono', monospace; color:var(--text-muted);">
+                <span>${c.author}</span>
+                <span>${c.date}</span>
+            </div>
+        `;
+        listContainer.appendChild(card);
+    });
+};
 
         window.selectArticle = function(id) {
             window.playSound('click');
@@ -589,39 +587,30 @@
         };
 
         window.renderActiveSheet = function() {
-            const container = document.getElementById('rpg-sheet-display');
-            if (!container) return;
-            
-            let c = window.activeCreatureId ? window.creatures.find(item => item.id === window.activeCreatureId) : null;
-            
-            if (!c) {
-                if (window.creatures.length > 0) {
-                    window.activeCreatureId = window.creatures[0].id;
-                    c = window.creatures[0];
-                } else {
-                    window.activeCreatureId = null;
-                    container.innerHTML = `
-                        <div style="padding:45px; text-align:center; color:var(--color-accent-green); font-family:'Orbitron',serif;">
-                            <i class="fa-solid fa-wifi" style="font-size:3.5rem; margin-bottom:15px; opacity:0.8; animation: pulse 2s infinite;"></i>
-                            <p style="font-style: italic; font-size: 1.1rem; font-weight:600; margin-bottom:10px;">EN ATTENTE D'ARTICLES</p>
-                            <p style="font-size:0.9rem; color:var(--text-muted); font-family: 'Share Tech Mono', monospace;">En attente de consignation pour établir un canal.</p>
-                        </div>
-                    `;
-                    return;
-                }
-            }
+    const container = document.getElementById('rpg-sheet-display');
+    if (!container) return;
+    
+    let c = window.activeCreatureId ? window.creatures.find(item => item.id === window.activeCreatureId) : null;
+    
+    if (!c) {
+        container.innerHTML = `<div style="padding:45px; text-align:center; color:var(--color-accent-green);">Aucun article sélectionné</div>`;
+        return;
+    }
 
-            container.innerHTML = `
-                <div class="rpg-header">
-                    <div class="rpg-meta">
-                        <span>ÉMETTEUR : ${c.author}</span>
-                        <span>CANAL : ${c.date}</span>
-                    </div>
-                    <h2 class="rpg-header-title" style="color: var(--color-accent-yellow); text-shadow: 0 0 5px var(--color-glow-yellow);">// ${c.title}</h2>
-                </div>
-                <div class="rpg-content font-sans">${c.content}</div>
-            `;
-        };
+    const priorityColors = { 'red': '#ef4444', 'orange': '#f59e0b', 'green': '#00ff66' };
+    const pColor = priorityColors[c.priority] || '#ffffff';
+
+    container.innerHTML = `
+        <div class="rpg-header">
+            <div class="rpg-meta">
+                <span>ÉMETTEUR : ${c.author}</span>
+                <span>CANAL : ${c.date}</span>
+            </div>
+            <h2 class="rpg-header-title" style="color: ${pColor}; text-shadow: 0 0 5px ${pColor};">// ${c.title}</h2>
+        </div>
+        <div class="rpg-content font-sans">${c.content}</div>
+    `;
+};
 
         window.showDeleteConfirmation = function(id) {
             window.pendingDeleteId = id;
@@ -687,7 +676,8 @@
                 title: document.getElementById('form-title').value.trim(),
                 author: document.getElementById('form-author').value.trim(),
                 date: document.getElementById('form-date').value.trim(),
-                content: document.getElementById('form-content').value.trim()
+                content: document.getElementById('form-content').value.trim(),
+                priority: document.getElementById('form-priority').value
             };
 
             window.toggleModal(false);
