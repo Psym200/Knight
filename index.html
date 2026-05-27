@@ -1156,7 +1156,7 @@
             // Diagnostic ajouté ici
             console.log("Tentative de sauvegarde. Mode :", savedMode, "DB existante :", !!db, "Auth existante :", !!auth, "User :", auth?.currentUser?.uid);
 
-            if (savedMode === 'shared' && db && auth && auth.currentUser) {
+            if (savedMode === 'shared' && db && auth) {
                 try {
                     const docId = obj.id || crypto.randomUUID();
                     obj.id = docId;
