@@ -569,11 +569,14 @@
         card.onclick = () => { window.selectArticle(c.id); };
 
         card.innerHTML = `
-            <div style="font-family:'Orbitron',sans-serif; font-weight:700; font-size:0.95rem; color:${pColor}; margin-bottom:8px;">${c.title}</div>
+            <div style="font-family:'Orbitron',sans-serif; font-weight:700; font-size:0.95rem; color:${pColor}; margin-bottom:8px; tracking: 0.5px;">${c.title}</div>
             <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-family:'Share Tech Mono', monospace; color:var(--text-muted);">
                 <span>${c.author}</span>
                 <span>${c.date}</span>
             </div>
+            <button class="article-card-delete" onclick="event.stopPropagation(); window.showDeleteConfirmation('${c.id}');" title="Purger le signal">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
         `;
         listContainer.appendChild(card);
     });
@@ -613,10 +616,10 @@
 };
 
         window.showDeleteConfirmation = function(id) {
-            window.pendingDeleteId = id;
-            const modal = document.getElementById('confirm-modal');
-            if (modal) modal.style.display = 'flex';
-        };
+    window.pendingDeleteId = id;
+    const modal = document.getElementById('confirm-modal');
+    if (modal) modal.style.display = 'flex';
+};
 
         window.closeDeleteConfirmation = function() {
             const modal = document.getElementById('confirm-modal');
