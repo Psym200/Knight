@@ -814,9 +814,11 @@
     <div id="toast" style="display: none; position: fixed; bottom: 20px; right: 20px; background-color: #faf4e5; border: 2px solid #c3a163; padding: 12px 20px; border-radius: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1000; font-family: 'Cinzel', serif; font-size: 0.9rem; color: #2a2015;"></div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { doc, setDoc, deleteDoc, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        
+        // Import de ta configuration centralisée
+        import { db, auth } from "./firebase-config.js";
 
         // État global
         window.creatures = [];
@@ -824,9 +826,8 @@
         window.activeCreatureId = null;
         window.pendingDeleteId = null;
 
+        // ID unique pour isoler les données du Bestiaire
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'knight-pokedex-app-default';
-        let db = null;
-        let auth = null;
 
         window.colorConfig = {
             Chair: { color: 'var(--chair)', label: "La Chair", icon: 'fa-solid fa-droplet' },
@@ -1186,26 +1187,14 @@
             window.renderActiveSheet();
         }
 
-        window.confirmDelete = async function() {
-            console.log("1. Clic modale. ID en attente :", window.pendingDeleteId);
-            if (window.pendingDeleteId) {
-                await window.deleteCreature(window.pendingDeleteId);
-            }
-            window.closeDeleteConfirmation();
-        };
-
         window.deleteCreature = async function(id) {
-            console.log("2. Début deleteCreature. ID :", id);
             window.playSound('click');
             const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
-            console.log("3. Mode actif :", savedMode);
             
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
-                    console.log("4a. Tentative de suppression sur Firebase...");
                     const ref = doc(db, 'artifacts', appId, 'public', 'data', 'creatures', id);
                     await deleteDoc(ref); 
-                    console.log("5. Succès Firebase");
                     window.showToast("Données bannies du Codex de la Table.");
                     
                     if (window.activeCreatureId === id) window.activeCreatureId = null;
@@ -1217,13 +1206,11 @@
                     localDelete(id);
                 }
             } else {
-                console.log("4b. Mode local ou Firebase inactif, passage à localDelete");
                 localDelete(id);
             }
         };
 
         function localDelete(id) {
-            console.log("-> Exécution de localDelete");
             window.creatures = window.creatures.filter(c => c.id !== id);
             localStorage.setItem(`knight_pokedex_local_${appId}`, JSON.stringify(window.creatures));
             window.showToast("Fiche rayée de vos parchemins locaux.");
@@ -1233,7 +1220,6 @@
             }
             window.renderList();
             window.renderActiveSheet();
-            console.log("-> UI mise à jour après suppression locale");
         }
 
         // Init Firebase & Sync
@@ -1279,25 +1265,15 @@
             const selectElem = document.getElementById('mode-select');
             if (selectElem) selectElem.value = savedMode;
 
-            if (savedMode === 'shared' && typeof __firebase_config !== 'undefined' && __firebase_config) {
+            if (savedMode === 'shared') {
                 try {
-                    const config = JSON.parse(__firebase_config);
-                    const app = initializeApp(config);
-                    db = getFirestore(app);
-                    auth = getAuth(app);
-
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-
+                    await signInAnonymously(auth);
                     onAuthStateChanged(auth, (user) => {
                         if (user) listenToDatabase();
                         else loadLocalFallback();
                     });
                 } catch (e) {
-                    console.error("Firebase fail, fallback active:", e);
+                    console.error("Firebase init failed, fallback active:", e);
                     loadLocalFallback();
                 }
             } else {

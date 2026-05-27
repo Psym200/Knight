@@ -739,6 +739,7 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, deleteDoc, collection, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Définition de l'ID unique pour cette page
         const localAppId = typeof __app_id !== 'undefined' ? __app_id : 'journal-susan';
         let db = null;
         let auth = null;
@@ -746,14 +747,15 @@
         const baseLocalSave = window.saveCreature;
         window.saveCreature = async function(obj) {
             window.playSound('success');
-            const savedMode = localStorage.getItem(`knight_journal_mode_${appId}`) || 'shared';
+            const savedMode = localStorage.getItem(`knight_journal_mode_${localAppId}`) || 'shared';
             
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
                     const docId = obj.id || crypto.randomUUID();
                     obj.id = docId;
                     obj.updatedAt = Date.now();
-                    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'journals', docId);
+                    // Utilisation de localAppId pour isoler les données de cette page
+                    const ref = doc(db, 'artifacts', localAppId, 'public', 'data', 'journals', docId);
                     await setDoc(ref, obj);
                     window.activeCreatureId = docId;
                     window.showToast("Chronique envoyée au terminal central.");
@@ -769,11 +771,11 @@
         const baseLocalDelete = window.deleteCreature;
         window.deleteCreature = async function(id) {
             window.playSound('click');
-            const savedMode = localStorage.getItem(`knight_journal_mode_${appId}`) || 'shared';
+            const savedMode = localStorage.getItem(`knight_journal_mode_${localAppId}`) || 'shared';
             
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
-                    const ref = doc(db, 'artifacts', appId, 'public', 'data', 'journals', id);
+                    const ref = doc(db, 'artifacts', localAppId, 'public', 'data', 'journals', id);
                     const currentItem = window.creatures.find(item => item.id === id);
                     if (currentItem) {
                         await setDoc(ref, { ...currentItem, deleted: true });
@@ -792,7 +794,7 @@
         };
 
         function listenToDatabase() {
-            const ref = collection(db, 'artifacts', appId, 'public', 'data', 'journals');
+            const ref = collection(db, 'artifacts', localAppId, 'public', 'data', 'journals');
             const q = query(ref);
 
             onSnapshot(q, (snap) => {
@@ -816,38 +818,53 @@
                 window.renderActiveSheet();
 
                 const syncBadge = document.getElementById('sync-badge');
-                if (syncBadge && localStorage.getItem(`knight_journal_mode_${appId}`) !== 'local') {
+                if (syncBadge && localStorage.getItem(`knight_journal_mode_${localAppId}`) !== 'local') {
                     syncBadge.innerHTML = "<span class='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping'></span>RESEAU_ACTIF";
                     syncBadge.className = "bg-emerald-950/20 border border-emerald-600/30 px-3 py-1 rounded text-[10px] font-mono text-emerald-500 flex items-center gap-1.5";
                 }
             }, (err) => {
                 console.error("Sync failed:", err);
+                window.loadLocalFallback();
             });
         }
 
         async function init() {
-            const savedMode = localStorage.getItem(`knight_journal_mode_${appId}`) || 'shared';
-            if (savedMode === 'shared' && typeof __firebase_config !== 'undefined' && __firebase_config) {
+            const savedMode = localStorage.getItem(`knight_journal_mode_${localAppId}`) || 'shared';
+            const selectElem = document.getElementById('mode-select');
+            if (selectElem) selectElem.value = savedMode;
+
+            if (savedMode === 'shared') {
                 try {
-                    const config = JSON.parse(__firebase_config);
+                    const config = {
+                        apiKey: "AIzaSyAbFhzscxcmUoZ9HnEawJLa0JiCmFayg60",
+                        authDomain: "knight-c719f.firebaseapp.com",
+                        projectId: "knight-c719f",
+                        storageBucket: "knight-c719f.firebasestorage.app",
+                        messagingSenderId: "605627921243",
+                        appId: "1:605627921243:web:3a1d1e618c51d5d6bea07e"
+                    };
                     const app = initializeApp(config);
                     db = getFirestore(app);
                     auth = getAuth(app);
 
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-
+                    // Connexion silencieuse à la base de données
+                    await signInAnonymously(auth);
+                    
+                    // Écoute de l'état de connexion pour lancer la synchronisation
                     onAuthStateChanged(auth, (user) => {
                         if (user) {
                             listenToDatabase();
+                        } else {
+                            window.loadLocalFallback();
                         }
                     });
+
                 } catch (e) {
-                    console.error("Firebase fail:", e);
+                    console.error("Firebase init failed:", e);
+                    window.loadLocalFallback();
                 }
+            } else {
+                window.loadLocalFallback();
             }
         }
 
