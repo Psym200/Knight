@@ -621,13 +621,17 @@
         </div>
 
         <div class="flex items-center gap-4">
-            <!-- Mode Selector Switch -->
             <div class="flex items-center gap-2">
                 <select id="mode-select" onchange="window.changeSyncMode(this.value)" class="parchment-input text-xs py-1.5 px-2 border-[#c3a163] bg-stone-900 text-amber-500 rounded font-serif cursor-pointer">
                     <option value="shared">Codex de la Table (Partagé)</option>
                     <option value="local">Codex Personnel (Local/Privé)</option>
                 </select>
             </div>
+
+            <a href="news.html" class="rpg-btn">
+                <i class="fa-solid fa-map-location-dot"></i> Les news
+            </a>
+
             <button onclick="window.toggleFormMode('create')" class="rpg-btn rpg-btn-primary">
                 <i class="fa-solid fa-feather-pointed"></i> Inscrire une créature
             </button>
