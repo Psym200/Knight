@@ -1152,6 +1152,10 @@
         window.saveCreature = async function(obj) {
             window.playSound('success');
             const savedMode = localStorage.getItem(`knight_pokedex_mode_${appId}`) || 'shared';
+            
+            // Diagnostic ajouté ici
+            console.log("Tentative de sauvegarde. Mode :", savedMode, "DB existante :", !!db, "Auth existante :", !!auth, "User :", auth?.currentUser?.uid);
+
             if (savedMode === 'shared' && db && auth && auth.currentUser) {
                 try {
                     const docId = obj.id || crypto.randomUUID();
@@ -1162,10 +1166,11 @@
                     window.activeCreatureId = docId;
                     window.showToast("Rapport rédigé dans le Codex de la Table.");
                 } catch (e) {
-                    console.error("Save error, local fallback run:", e);
+                    console.error("ERREUR FIREBASE DÉTAILLÉE :", e);
                     localSave(obj);
                 }
             } else {
+                console.warn("Condition Firebase non remplie, passage en local.");
                 localSave(obj);
             }
         };
