@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Combat — Table du Knight</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=EB+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root{--bg-table:#14110e;--bg-panel:#231c15;--bg-parchment:#faf4e5;--bg-input:#1b1510;--border-gold:#c3a163;--border-iron:#4a3e35;--text-dark:#2a2015;--text-light:#e6dfd3;--text-muted:#8c765c;}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        body{background-color:var(--bg-table);color:var(--text-light);font-family:'EB Garamond',serif;font-size:1.1rem;height:100vh;display:flex;flex-direction:column;overflow:hidden;background-image:radial-gradient(rgba(0,0,0,0.4) 20%,transparent 80%);}
+        .app-header{background:linear-gradient(180deg,#1b1510 0%,#120e0a 100%);border-bottom:3px double var(--border-gold);padding:12px 25px;display:flex;align-items:center;justify-content:space-between;height:80px;width:100%;position:fixed;top:0;left:0;z-index:100;}
+        .app-title{font-family:'Cinzel',serif;font-weight:700;letter-spacing:1px;color:var(--border-gold);font-size:1.5rem;text-shadow:0 2px 4px rgba(0,0,0,0.8);}
+        .app-subtitle{font-family:'EB Garamond',serif;font-style:italic;font-size:0.8rem;color:var(--text-muted);margin-top:2px;}
+        .rpg-btn{background-color:var(--bg-input);border:1px solid var(--border-iron);color:var(--text-light);padding:7px 14px;border-radius:3px;cursor:pointer;font-family:'Cinzel',serif;font-size:0.78rem;font-weight:600;display:inline-flex;align-items:center;gap:7px;transition:all 0.2s;text-decoration:none;}
+        .rpg-btn:hover{border-color:var(--border-gold);color:var(--border-gold);background-color:rgba(195,161,99,0.1);}
+        .rpg-btn-primary{background-color:var(--border-gold);border-color:var(--border-gold);color:#120e0a;}
+        .rpg-btn-primary:hover{opacity:0.85;color:#120e0a;}
+        .rpg-btn-danger{background-color:rgba(180,30,30,0.15);border-color:#8b1a1a;color:#e57373;}
+        .rpg-btn-danger:hover{background-color:rgba(180,30,30,0.3);color:#ffaaaa;}
+        .rpg-btn-success{background-color:rgba(21,128,61,0.15);border-color:#15803d;color:#4ade80;}
+        .rpg-btn-success:hover{background-color:rgba(21,128,61,0.3);}
+        .main-wrapper{display:flex;flex-direction:column;width:100%;height:calc(100vh - 80px);margin-top:80px;overflow:hidden;min-height:0;}
+        /* FRISE */
+        .initiative-bar{background:linear-gradient(180deg,#1e170f 0%,#160f09 100%);border-bottom:3px double var(--border-iron);padding:14px 20px;display:flex;align-items:center;gap:8px;min-height:130px;overflow-x:auto;overflow-y:hidden;flex-shrink:0;scrollbar-width:thin;scrollbar-color:var(--border-iron) transparent;}
+        .initiative-bar::-webkit-scrollbar{height:4px;}
+        .initiative-bar::-webkit-scrollbar-thumb{background:var(--border-iron);border-radius:2px;}
+        .fighter-token{display:flex;flex-direction:column;align-items:center;gap:5px;cursor:pointer;flex-shrink:0;padding:7px 9px;border-radius:6px;border:2px solid transparent;transition:all 0.25s;position:relative;min-width:76px;}
+        .fighter-token:hover{background:rgba(195,161,99,0.07);border-color:rgba(195,161,99,0.25);}
+        .fighter-token.active{border-color:var(--border-gold);background:rgba(195,161,99,0.12);box-shadow:0 0 14px rgba(195,161,99,0.2);}
+        .fighter-token.dead{opacity:0.3;filter:grayscale(0.9);}
+        .token-avatar{width:50px;height:50px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;border:2px solid var(--border-iron);position:relative;}
+        .token-init{position:absolute;top:-7px;right:-7px;background:var(--bg-panel);border:1px solid var(--border-iron);border-radius:50%;width:20px;height:20px;font-family:'Cinzel',serif;font-size:0.58rem;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--border-gold);}
+        .token-hp-bar{width:50px;height:5px;background:#3a2a1a;border-radius:3px;overflow:hidden;}
+        .token-hp-fill{height:100%;border-radius:3px;transition:width 0.3s;}
+        .token-name{font-family:'Cinzel',serif;font-size:0.6rem;color:var(--text-muted);text-align:center;max-width:76px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .fighter-token.active .token-name{color:var(--border-gold);}
+        .token-statuses{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;max-width:76px;}
+        .token-status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+        .active-indicator{position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--border-gold);}
+        .turn-separator{width:1px;height:60px;background:var(--border-iron);flex-shrink:0;opacity:0.4;align-self:center;}
+        /* LAYOUT */
+        .combat-main{flex:1;display:flex;overflow:hidden;min-height:0;}
+        .fighters-panel{width:290px;flex-shrink:0;background:var(--bg-panel);border-right:3px double var(--border-iron);display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+        .fighters-panel-header{padding:12px 15px;border-bottom:1px solid var(--border-iron);display:flex;align-items:center;justify-content:space-between;}
+        .fighters-panel-header h2{font-family:'Cinzel',serif;font-size:0.85rem;color:var(--border-gold);letter-spacing:0.05em;}
+        .fighters-list{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:7px;}
+        .fighter-row{background:#1a1410;border:1px solid var(--border-iron);border-radius:5px;padding:9px 11px;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;gap:9px;}
+        .fighter-row:hover{border-color:rgba(195,161,99,0.45);}
+        .fighter-row.active{border-color:var(--border-gold);background:#2b2118;}
+        .fighter-row.dead{opacity:0.35;}
+        .fighter-row-avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.85rem;border:1px solid var(--border-iron);flex-shrink:0;}
+        .fighter-row-info{flex:1;min-width:0;}
+        .fighter-row-name{font-family:'Cinzel',serif;font-size:0.78rem;color:var(--text-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .fighter-row.active .fighter-row-name{color:var(--border-gold);}
+        .fighter-row-hp{font-size:0.72rem;color:var(--text-muted);font-style:italic;margin-top:2px;}
+        .fighter-row-statuses{display:flex;gap:3px;margin-top:3px;flex-wrap:wrap;}
+        .status-pip{font-size:0.58rem;font-family:'Cinzel',serif;padding:1px 5px;border-radius:2px;font-weight:600;white-space:nowrap;}
+        .fighter-row-delete{background:transparent;border:none;color:var(--text-muted);cursor:pointer;opacity:0;transition:all 0.2s;padding:4px 5px;border-radius:3px;flex-shrink:0;}
+        .fighter-row:hover .fighter-row-delete{opacity:0.55;}
+        .fighter-row-delete:hover{opacity:1!important;color:#ef4444;background:rgba(239,68,68,0.15);}
+        /* PANNEAU ACTIF */
+        .active-panel{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px;min-height:0;}
+        .active-card{background:var(--bg-parchment);color:var(--text-dark);border:1px solid #c8bda6;border-radius:6px;box-shadow:0 4px 20px rgba(0,0,0,0.5);overflow:hidden;}
+        .active-card-header{background:#f0e8d0;border-bottom:2px solid #c8bda6;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+        .active-card-title{font-family:'Cinzel',serif;font-size:1.45rem;font-weight:700;color:var(--text-dark);}
+        .active-card-body{padding:20px;display:flex;flex-direction:column;gap:16px;}
+        /* STATS */
+        .stat-blocks{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+        .stat-block{background:#fdfaf2;border:1px solid #dfd5be;border-radius:5px;padding:11px 8px;text-align:center;}
+        .stat-block.dimmed{opacity:0.4;pointer-events:none;}
+        .stat-block-title{font-family:'Cinzel',serif;font-size:0.64rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;display:flex;align-items:center;justify-content:center;gap:4px;}
+        .stat-values{display:flex;align-items:center;justify-content:center;gap:4px;}
+        .stat-current{font-family:'Cinzel',serif;font-size:1.7rem;font-weight:700;line-height:1;}
+        .stat-sep{color:#c8bda6;font-size:1rem;}
+        .stat-max-val{font-family:'EB Garamond',serif;font-size:0.88rem;color:var(--text-muted);}
+        .hp-bar-wrap{background:#e8dfc8;border-radius:3px;height:5px;overflow:hidden;margin-top:6px;}
+        .hp-bar-fill{height:100%;border-radius:3px;transition:width 0.3s;}
+        .stat-controls{display:flex;align-items:center;justify-content:center;gap:3px;margin-top:8px;flex-wrap:wrap;}
+        .stat-btn{width:26px;height:26px;border-radius:50%;border:1px solid var(--border-iron);background:var(--bg-input);color:var(--text-light);cursor:pointer;font-size:0.72rem;font-weight:700;display:flex;align-items:center;justify-content:center;transition:all 0.2s;flex-shrink:0;}
+        .stat-btn:hover{border-color:var(--border-gold);color:var(--border-gold);}
+        .stat-btn-wide{width:auto;padding:0 5px;border-radius:4px;font-size:0.6rem;}
+        .stat-input-val{width:38px;text-align:center;background:var(--bg-input);border:1px solid var(--border-iron);color:var(--text-light);border-radius:3px;padding:3px 2px;font-family:'Cinzel',serif;font-size:0.75rem;outline:none;}
+        .stat-input-val:focus{border-color:var(--border-gold);}
+        /* ÉTATS — grille par catégorie */
+        .statuses-section{background:#fdfaf2;border:1px solid #dfd5be;border-radius:5px;padding:14px 16px;}
+        .statuses-title{font-family:'Cinzel',serif;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+        .statuses-category{margin-bottom:14px;}
+        .statuses-category:last-child{margin-bottom:0;}
+        .statuses-category-title{font-family:'Cinzel',serif;font-size:0.65rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;border-bottom:1px solid #dfd5be;padding-bottom:5px;margin-bottom:8px;}
+        .statuses-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;}
+        .status-item{background:#f5f0e4;border:1px solid #dfd5be;border-radius:5px;padding:9px 11px;display:flex;align-items:center;gap:9px;transition:border-color 0.2s;}
+        .status-item.active-status{background:white;}
+        .status-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.8rem;flex-shrink:0;border:1px solid currentColor;}
+        .status-info{flex:1;min-width:0;}
+        .status-name{font-family:'Cinzel',serif;font-size:0.7rem;font-weight:600;}
+        .status-desc{font-size:0.65rem;font-style:italic;color:var(--text-muted);margin-top:2px;line-height:1.3;}
+        .status-params{display:flex;gap:5px;margin-top:4px;align-items:center;flex-wrap:wrap;}
+        .status-param-label{font-size:0.65rem;font-style:italic;color:var(--text-muted);}
+        .status-param-input{width:34px;text-align:center;background:rgba(0,0,0,0.04);border:1px solid #c8bda6;color:var(--text-dark);border-radius:3px;padding:2px 3px;font-family:'Cinzel',serif;font-size:0.7rem;outline:none;}
+        .status-param-input:focus{border-color:var(--border-gold);}
+        .status-toggle{background:transparent;border:1px solid #c8bda6;border-radius:3px;cursor:pointer;padding:3px 7px;font-family:'Cinzel',serif;font-size:0.6rem;color:var(--text-muted);transition:all 0.2s;flex-shrink:0;white-space:nowrap;}
+        .status-toggle.on{color:white;border-color:currentColor;}
+        /* NOTES */
+        .notes-section{background:#fdfaf2;border:1px solid #dfd5be;border-radius:5px;padding:14px 16px;}
+        .notes-title{font-family:'Cinzel',serif;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;color:var(--text-muted);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+        .notes-textarea{width:100%;background:rgba(0,0,0,0.03);border:1px solid #c8bda6;color:var(--text-dark);font-family:'EB Garamond',serif;font-size:1rem;padding:10px 12px;border-radius:4px;outline:none;resize:vertical;min-height:90px;line-height:1.6;}
+        .notes-textarea:focus{border-color:var(--border-gold);}
+        .notes-textarea::placeholder{color:#b8ad96;font-style:italic;}
+        /* ACTIONS */
+        .turn-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+        /* EMPTY */
+        .empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--text-muted);font-style:italic;text-align:center;padding:40px;}
+        .empty-state i{font-size:3rem;opacity:0.25;}
+        #toast{display:none;position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:#2b2118;border:1px solid var(--border-gold);color:var(--border-gold);padding:10px 22px;border-radius:4px;font-family:'Cinzel',serif;font-size:0.78rem;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,0.5);white-space:nowrap;}
+        /* MODALES */
+        .rpg-modal{display:none;position:fixed;inset:0;background:rgba(14,10,7,0.88);z-index:500;align-items:center;justify-content:center;padding:20px;}
+        .rpg-modal-content{background:var(--bg-parchment);color:var(--text-dark);width:100%;max-width:520px;border:2px solid var(--border-gold);border-radius:6px;box-shadow:0 0 30px rgba(0,0,0,0.8);display:flex;flex-direction:column;max-height:90vh;}
+        .modal-header{background:#f0e8d0;border-bottom:2px solid #c8bda6;padding:16px 22px;display:flex;align-items:center;justify-content:space-between;}
+        .modal-header h3{font-family:'Cinzel',serif;font-size:1rem;font-weight:700;color:var(--text-dark);}
+        .modal-body{padding:20px 22px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;}
+        .modal-footer{padding:14px 22px;border-top:1px solid #c8bda6;display:flex;justify-content:flex-end;gap:10px;}
+        .form-label{font-family:'Cinzel',serif;font-size:0.72rem;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:5px;display:block;}
+        .form-input{background:rgba(0,0,0,0.04);border:1px solid #c8bda6;color:var(--text-dark);font-family:'EB Garamond',serif;padding:8px 12px;border-radius:4px;outline:none;font-size:1.05rem;width:100%;}
+        .form-input:focus{border-color:var(--border-gold);}
+        .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+        .type-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+        .type-btn{padding:9px 4px;border-radius:4px;border:2px solid #c8bda6;background:rgba(0,0,0,0.03);cursor:pointer;text-align:center;font-family:'Cinzel',serif;font-size:0.65rem;font-weight:600;color:var(--text-muted);transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:5px;}
+        .type-btn i{font-size:1.15rem;}
+        .type-btn:hover{border-color:var(--border-gold);}
+        .type-btn.selected{border-color:var(--border-gold);background:rgba(195,161,99,0.12);color:var(--text-dark);}
+        @media(max-width:900px){.stat-blocks{grid-template-columns:repeat(2,1fr);}}
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <div>
+        <h1 class="app-title">Table de Combat</h1>
+        <p class="app-subtitle">Gestion des affrontements</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div style="font-family:'Cinzel',serif;font-size:0.72rem;color:var(--text-muted);border:1px solid var(--border-iron);padding:5px 12px;border-radius:3px;text-align:center;">
+            Round <span id="round-number" style="color:var(--border-gold);font-size:1rem;font-weight:700;">1</span>
+        </div>
+        <a href="index.html" class="rpg-btn"><i class="fa-solid fa-dragon"></i> Bestiaire</a>
+        <a href="news.html" class="rpg-btn"><i class="fa-solid fa-scroll"></i> Chronique</a>
+        <button onclick="openAddModal()" class="rpg-btn rpg-btn-primary"><i class="fa-solid fa-plus"></i> Combattant</button>
+        <button onclick="openResetConfirm()" class="rpg-btn rpg-btn-danger"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+    </div>
+</header>
+
+<div class="initiative-bar" id="initiative-bar"></div>
+
+<div class="combat-main">
+    <aside class="fighters-panel">
+        <div class="fighters-panel-header">
+            <h2><i class="fa-solid fa-users" style="margin-right:6px;"></i>Combattants</h2>
+            <span id="fighters-count" style="font-family:'Cinzel',serif;font-size:0.7rem;color:var(--text-muted);">0</span>
+        </div>
+        <div class="fighters-list" id="fighters-list"></div>
+    </aside>
+    <div class="active-panel" id="active-panel"></div>
+</div>
+
+<div id="toast"></div>
+
+<!-- MODALE AJOUT -->
+<div class="rpg-modal" id="add-modal" onclick="if(event.target===this)closeAddModal()">
+    <div class="rpg-modal-content">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-plus" style="color:var(--border-gold);margin-right:8px;"></i>Ajouter un combattant</h3>
+            <button onclick="closeAddModal()" style="background:transparent;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;"><i class="fa-solid fa-circle-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <div><label class="form-label">Nom</label><input type="text" id="f-name" class="form-input" placeholder="Ex : Aldric, Créature de la Chair…"></div>
+            <div>
+                <label class="form-label">Type</label>
+                <div class="type-grid">
+                    <div class="type-btn selected" data-type="knight" onclick="selectType(this)"><i class="fa-solid fa-chess-knight" style="color:#c3a163;"></i>Knight</div>
+                    <div class="type-btn" data-type="enemy" onclick="selectType(this)"><i class="fa-solid fa-skull" style="color:#dc2626;"></i>Ennemi</div>
+                    <div class="type-btn" data-type="ally" onclick="selectType(this)"><i class="fa-solid fa-person" style="color:#38bdf8;"></i>PNJ allié</div>
+                    <div class="type-btn" data-type="summon" onclick="selectType(this)"><i class="fa-solid fa-star" style="color:#a855f7;"></i>Invocation</div>
+                </div>
+            </div>
+            <div class="form-grid">
+                <div><label class="form-label">Initiative</label><input type="number" id="f-init" class="form-input" value="10" min="0" max="99"></div>
+                <div><label class="form-label">PV max</label><input type="number" id="f-hp" class="form-input" value="10" min="1"></div>
+                <div><label class="form-label">Bouclier max</label><input type="number" id="f-shield" class="form-input" value="0" min="0"></div>
+                <div><label class="form-label">Armure max</label><input type="number" id="f-armor" class="form-input" value="0" min="0"></div>
+            </div>
+            <div><label class="form-label">Résilience max</label><input type="number" id="f-res" class="form-input" value="0" min="0"></div>
+        </div>
+        <div class="modal-footer">
+            <button onclick="closeAddModal()" class="rpg-btn">Annuler</button>
+            <button onclick="addFighter()" class="rpg-btn rpg-btn-primary"><i class="fa-solid fa-plus"></i> Ajouter</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODALE RESET -->
+<div class="rpg-modal" id="reset-modal" onclick="if(event.target===this)closeResetConfirm()">
+    <div style="background:var(--bg-parchment);color:var(--text-dark);border:2px solid #b91c1c;border-radius:6px;padding:30px;max-width:360px;width:100%;text-align:center;box-shadow:0 0 30px rgba(0,0,0,0.8);">
+        <i class="fa-solid fa-skull" style="font-size:2rem;color:#b91c1c;margin-bottom:12px;display:block;"></i>
+        <h3 style="font-family:'Cinzel',serif;font-size:1.05rem;font-weight:700;margin-bottom:10px;color:#b91c1c;">Réinitialiser le combat ?</h3>
+        <p style="font-size:0.95rem;margin-bottom:22px;color:var(--text-muted);font-style:italic;">Tous les combattants seront retirés et le round remis à 1.</p>
+        <div style="display:flex;justify-content:center;gap:12px;">
+            <button onclick="closeResetConfirm()" class="rpg-btn">Annuler</button>
+            <button onclick="resetCombat()" class="rpg-btn rpg-btn-danger"><i class="fa-solid fa-rotate-left"></i> Réinitialiser</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let fighters=[], activeId=null, round=1, selectedType='knight';
+
+const TYPE={
+    knight:{icon:'fa-chess-knight',color:'#c3a163',label:'Knight'},
+    enemy: {icon:'fa-skull',       color:'#dc2626',label:'Ennemi'},
+    ally:  {icon:'fa-person',      color:'#38bdf8',label:'PNJ allié'},
+    summon:{icon:'fa-star',        color:'#a855f7',label:'Invocation'},
+};
+
+// Catégories d'états
+const STATUS_CATS=[
+    {
+        key:'combat', label:'Combat',
+        statuses:{
+            choc:      {label:'Choc',      color:'#7c3aed',bg:'#ede9fe',icon:'fa-bolt',         desc:'Perd ses prochaines actions',          params:[{key:'actions',label:'Actions',def:1}]},
+            dot:       {label:'DoT',       color:'#dc2626',bg:'#fee2e2',icon:'fa-droplet',       desc:'Dégâts récurrents par tour',           params:[{key:'dmg',label:'Dégâts',def:1},{key:'tours',label:'Tours',def:3}]},
+            lumiere:   {label:'Lumière',   color:'#f59e0b',bg:'#fef3c7',icon:'fa-sun',           desc:'-X à la défense et réaction',          params:[{key:'malus',label:'Malus',def:1}]},
+            soumission:{label:'Soumission',color:'#0f766e',bg:'#ccfbf1',icon:'fa-chain',         desc:'Ne peut se déplacer, doit attaquer au contact',params:[]},
+            malus:     {label:'Malus dés', color:'#6b7280',bg:'#f3f4f6',icon:'fa-dice-d6',       desc:'-X dés de lancer',                     params:[{key:'des',label:'Dés',def:1}]},
+        }
+    },
+    {
+        key:'chair', label:'Seigneur Chair',
+        statuses:{
+            chair_min: {label:'Chair mineure',color:'#dc2626',bg:'#fee2e2',icon:'fa-heart-crack', desc:'-X aux dégâts reçus',                  params:[{key:'malus',label:'Réduction',def:1}]},
+            chair_maj: {label:'Chair majeure',color:'#991b1b',bg:'#fecaca',icon:'fa-heart-pulse',  desc:'Ignore barrage/choc/meurtrier, -X dégâts reçus',params:[{key:'malus',label:'Réduction',def:1}]},
+        }
+    },
+    {
+        key:'bete', label:'Seigneur Bête',
+        statuses:{
+            bete_min:  {label:'Bête mineure',color:'#ea580c',bg:'#ffedd5',icon:'fa-paw',           desc:'+X aux dégâts de contact',             params:[{key:'bonus',label:'Bonus dégâts',def:1}]},
+            bete_maj:  {label:'Bête majeure',color:'#c2410c',bg:'#fed7aa',icon:'fa-dragon',         desc:'+score Bête et +X aux dégâts de contact',params:[{key:'bonus',label:'Bonus dégâts',def:1}]},
+        }
+    },
+    {
+        key:'machine', label:'Seigneur Machine',
+        statuses:{
+            machine_min:{label:'Machine mineure',color:'#1e40af',bg:'#dbeafe',icon:'fa-microchip',  desc:'+X à la réaction',                    params:[{key:'bonus',label:'Bonus réaction',def:1}]},
+            machine_maj:{label:'Machine majeure', color:'#1e3a8a',bg:'#bfdbfe',icon:'fa-robot',      desc:'Insensible invisibilité/illusions, +X réaction',params:[{key:'bonus',label:'Bonus réaction',def:1}]},
+        }
+    },
+    {
+        key:'dame', label:'Seigneur Dame',
+        statuses:{
+            dame_min:  {label:'Dame mineure',color:'#0891b2',bg:'#cffafe',icon:'fa-shield-heart',   desc:'Peut reporter ses dégâts sur alliés à portée courte',params:[]},
+            dame_maj:  {label:'Dame majeure',color:'#0e7490',bg:'#a5f3fc',icon:'fa-crown',           desc:'Report dégâts + test Hargne X pour être touché',params:[{key:'hargne',label:'Hargne',def:1}]},
+        }
+    },
+    {
+        key:'masque', label:'Seigneur Masque',
+        statuses:{
+            masque_min:{label:'Masque mineure',color:'#475569',bg:'#f1f5f9',icon:'fa-mask',          desc:'+X à la défense',                     params:[{key:'bonus',label:'Bonus défense',def:1}]},
+        }
+    },
+];
+
+// Map plate key→def pour accès rapide
+const STATUS_DEF={};
+STATUS_CATS.forEach(cat=>Object.entries(cat.statuses).forEach(([k,v])=>{STATUS_DEF[k]={...v,cat:cat.key};}));
+
+// Sons
+const ac=new (window.AudioContext||window.webkitAudioContext)();
+function playSound(t){
+    try{
+        if(ac.state==='suspended')ac.resume();
+        const o=ac.createOscillator(),g=ac.createGain();
+        o.connect(g);g.connect(ac.destination);
+        if(t==='click'){o.type='triangle';o.frequency.value=440;g.gain.setValueAtTime(0.04,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.12);o.start();o.stop(ac.currentTime+0.12);}
+        else if(t==='next'){o.type='sine';o.frequency.value=523;g.gain.setValueAtTime(0.06,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.25);o.start();o.stop(ac.currentTime+0.25);}
+        else if(t==='dead'){o.type='sawtooth';o.frequency.value=180;g.gain.setValueAtTime(0.05,ac.currentTime);g.gain.exponentialRampToValueAtTime(0.001,ac.currentTime+0.4);o.start();o.stop(ac.currentTime+0.4);}
+    }catch(e){}
+}
+
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>{t.style.display='none';},3200);}
+function hpColor(pct){return pct>0.6?'#15803d':pct>0.3?'#c2410c':'#b91c1c';}
+function sorted(){return[...fighters].sort((a,b)=>b.initiative-a.initiative);}
+function getActive(){return fighters.find(f=>f.id===activeId)||null;}
+function hexRgb(hex){return`${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)}`;}
+function getActiveStatuses(f){return Object.entries(f.statuses||{}).filter(([,s])=>s.active);}
+
+// ── FRISE ──
+function renderBar(){
+    const bar=document.getElementById('initiative-bar');
+    const s=sorted();
+    if(!s.length){bar.innerHTML=`<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:12px;font-style:italic;color:var(--text-muted);font-size:0.9rem;"><i class="fa-solid fa-chess-knight" style="font-size:1.4rem;opacity:0.3;"></i>Ajoute des combattants pour lancer le combat</div>`;return;}
+    bar.innerHTML='';
+    s.forEach((f,i)=>{
+        const isActive=f.id===activeId;
+        const cfg=TYPE[f.type]||TYPE.knight;
+        const hpPct=f.hpMax>0?Math.max(0,f.hp/f.hpMax):0;
+        const activeSt=getActiveStatuses(f);
+        const tok=document.createElement('div');
+        tok.className=`fighter-token${isActive?' active':''}${f.hp<=0?' dead':''}`;
+        tok.onclick=()=>selectFighter(f.id);
+        const dots=activeSt.map(([k])=>`<div class="token-status-dot" style="background:${STATUS_DEF[k].color};" title="${STATUS_DEF[k].label}"></div>`).join('');
+        tok.innerHTML=`
+            <div class="token-avatar" style="background:rgba(${hexRgb(cfg.color)},0.1);border-color:${isActive?cfg.color:'var(--border-iron)'};">
+                <i class="fa-solid ${cfg.icon}" style="color:${cfg.color};"></i>
+                <div class="token-init">${f.initiative}</div>
+            </div>
+            <div class="token-hp-bar"><div class="token-hp-fill" style="width:${hpPct*100}%;background:${hpColor(hpPct)};"></div></div>
+            <div class="token-name">${f.name}</div>
+            ${dots?`<div class="token-statuses">${dots}</div>`:''}
+            ${isActive?'<div class="active-indicator"></div>':''}`;
+        bar.appendChild(tok);
+        if(i<s.length-1){const sep=document.createElement('div');sep.className='turn-separator';bar.appendChild(sep);}
+    });
+}
+
+// ── LISTE ──
+function renderList(){
+    const list=document.getElementById('fighters-list');
+    const s=sorted();
+    document.getElementById('fighters-count').textContent=s.length;
+    if(!s.length){list.innerHTML=`<div style="padding:20px;text-align:center;font-style:italic;color:var(--text-muted);font-size:0.9rem;">Aucun combattant</div>`;return;}
+    list.innerHTML='';
+    s.forEach(f=>{
+        const isActive=f.id===activeId;
+        const cfg=TYPE[f.type]||TYPE.knight;
+        const activeSt=getActiveStatuses(f);
+        const pips=activeSt.map(([k])=>`<span class="status-pip" style="background:${STATUS_DEF[k].bg};color:${STATUS_DEF[k].color};">${STATUS_DEF[k].label}</span>`).join('');
+        const row=document.createElement('div');
+        row.className=`fighter-row${isActive?' active':''}${f.hp<=0?' dead':''}`;
+        row.onclick=()=>selectFighter(f.id);
+        row.innerHTML=`
+            <div class="fighter-row-avatar" style="background:rgba(${hexRgb(cfg.color)},0.1);border-color:${cfg.color};"><i class="fa-solid ${cfg.icon}" style="color:${cfg.color};font-size:0.8rem;"></i></div>
+            <div class="fighter-row-info">
+                <div class="fighter-row-name">${f.name}</div>
+                <div class="fighter-row-hp">PV ${f.hp}/${f.hpMax}${f.shieldMax>0?' · Bou.'+f.shield:''}${f.armorMax>0?' · Arm.'+f.armor:''}${f.resMax>0?' · Rés.'+f.res:''}</div>
+                ${pips?`<div class="fighter-row-statuses">${pips}</div>`:''}
+            </div>
+            <button class="fighter-row-delete" onclick="event.stopPropagation();removeFighter('${f.id}')" title="Retirer"><i class="fa-solid fa-xmark"></i></button>`;
+        list.appendChild(row);
+    });
+}
+
+// ── PANNEAU ACTIF ──
+function renderActive(){
+    const panel=document.getElementById('active-panel');
+    const f=getActive();
+    if(!f){panel.innerHTML=`<div class="empty-state"><i class="fa-solid fa-shield-halved"></i><p>Sélectionne un combattant</p></div>`;return;}
+    const cfg=TYPE[f.type]||TYPE.knight;
+    const hpPct=f.hpMax>0?Math.max(0,f.hp/f.hpMax):0;
+    const shPct=f.shieldMax>0?Math.max(0,f.shield/f.shieldMax):0;
+    const arPct=f.armorMax>0?Math.max(0,f.armor/f.armorMax):0;
+    const rePct=f.resMax>0?Math.max(0,f.res/f.resMax):0;
+
+    panel.innerHTML=`
+    <div class="active-card">
+        <div class="active-card-header">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(${hexRgb(cfg.color)},0.12);border:2px solid ${cfg.color};">
+                    <i class="fa-solid ${cfg.icon}" style="color:${cfg.color};font-size:1.3rem;"></i>
+                </div>
+                <div>
+                    <div class="active-card-title">${f.name}</div>
+                    <div style="font-family:'Cinzel',serif;font-size:0.7rem;color:${cfg.color};letter-spacing:0.04em;margin-top:2px;">${cfg.label} · Initiative ${f.initiative}</div>
+                </div>
+            </div>
+            ${f.hp<=0?`<span style="font-family:'Cinzel',serif;font-size:0.72rem;color:#b91c1c;border:1px solid #b91c1c;padding:3px 10px;border-radius:3px;">Hors combat</span>`:''}
+        </div>
+        <div class="active-card-body">
+            <div class="stat-blocks">
+                ${sb('hp','fa-heart','#b91c1c','Points de Vie',f.hp,f.hpMax,hpPct,hpColor(hpPct),10,1)}
+                ${sb('shield','fa-shield','#1e40af','Bouclier',f.shield,f.shieldMax,shPct,'#1e40af',5,1,f.shieldMax===0)}
+                ${sb('armor','fa-vest','#5c4a30','Armure',f.armor,f.armorMax,arPct,'#6b5840',5,1,f.armorMax===0)}
+                ${sb('res','fa-atom','#0f766e','Résilience',f.res,f.resMax,rePct,'#0f766e',5,1,f.resMax===0)}
+            </div>
+            ${buildStatuses(f)}
+            ${buildNotes(f)}
+            <div class="turn-actions">
+                <button onclick="nextTurn()" class="rpg-btn rpg-btn-primary" style="font-size:0.85rem;padding:9px 20px;"><i class="fa-solid fa-forward-step"></i> Passer le tour</button>
+                <button onclick="healFull('${f.id}')" class="rpg-btn rpg-btn-success"><i class="fa-solid fa-hand-holding-medical"></i> Soins complets</button>
+                <button onclick="removeFighter('${f.id}')" class="rpg-btn rpg-btn-danger"><i class="fa-solid fa-skull"></i> Retirer</button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function sb(key,icon,color,label,cur,max,pct,barColor,big,small,dimmed=false){
+    return`<div class="stat-block${dimmed?' dimmed':''}">
+        <div class="stat-block-title" style="color:${color};"><i class="fa-solid ${icon}"></i> ${label}</div>
+        <div class="stat-values"><span class="stat-current" style="color:${color};">${cur}</span><span class="stat-sep">/</span><span class="stat-max-val">${max}</span></div>
+        <div class="hp-bar-wrap"><div class="hp-bar-fill" style="width:${pct*100}%;background:${barColor};"></div></div>
+        <div class="stat-controls">
+            <button class="stat-btn stat-btn-wide" onclick="adj('${key}',-${big})">-${big}</button>
+            <button class="stat-btn" onclick="adj('${key}',-${small})">−</button>
+            <input class="stat-input-val" type="number" value="${cur}" onchange="setStat('${key}',this.value)" min="0" max="${max}">
+            <button class="stat-btn" onclick="adj('${key}',${small})">+</button>
+            <button class="stat-btn stat-btn-wide" onclick="adj('${key}',${big})">+${big}</button>
+        </div>
+    </div>`;
+}
+
+function buildStatuses(f){
+    const cats=STATUS_CATS.map(cat=>{
+        const items=Object.entries(cat.statuses).map(([key,def])=>{
+            const s=f.statuses[key];
+            const isOn=s.active;
+            const params=def.params.map(p=>`
+                <span class="status-param-label">${p.label}:</span>
+                <input class="status-param-input" type="number" value="${s.params[p.key]??p.def}" min="0" onchange="updateStatusParam('${key}','${p.key}',this.value)">`
+            ).join('');
+            return`<div class="status-item${isOn?' active-status':''}" style="${isOn?'border-color:'+def.color+';':''}">
+                <div class="status-icon" style="background:${isOn?def.bg:'rgba(0,0,0,0.03)'};color:${def.color};border-color:${def.color};">
+                    <i class="fa-solid ${def.icon}"></i>
+                </div>
+                <div class="status-info">
+                    <div class="status-name" style="color:${isOn?def.color:'var(--text-dark)'};">${def.label}</div>
+                    <div class="status-desc">${def.desc}</div>
+                    ${def.params.length?`<div class="status-params">${params}</div>`:''}
+                </div>
+                <button class="status-toggle${isOn?' on':''}" style="${isOn?'background:'+def.color+';border-color:'+def.color+';color:white;':''}" onclick="toggleStatus('${key}')">
+                    ${isOn?'Actif':'OFF'}
+                </button>
+            </div>`;
+        }).join('');
+        return`<div class="statuses-category">
+            <div class="statuses-category-title">${cat.label}</div>
+            <div class="statuses-grid">${items}</div>
+        </div>`;
+    }).join('');
+    return`<div class="statuses-section">
+        <div class="statuses-title"><i class="fa-solid fa-triangle-exclamation"></i> États & Effets</div>
+        ${cats}
+    </div>`;
+}
+
+function buildNotes(f){
+    return`<div class="notes-section">
+        <div class="notes-title"><i class="fa-solid fa-feather-pointed"></i> Notes</div>
+        <textarea class="notes-textarea" placeholder="Stratégie, comportements spéciaux, notes de combat…"
+            onchange="updateNotes(this.value)"
+            oninput="updateNotes(this.value)">${f.notes||''}</textarea>
+    </div>`;
+}
+
+function render(){
+    document.getElementById('round-number').textContent=round;
+    renderBar();renderList();renderActive();
+}
+
+// ── ACTIONS ──
+function selectFighter(id){playSound('click');activeId=id;render();}
+
+function adj(stat,delta){
+    const f=getActive();if(!f)return;
+    const mk=stat+'Max';
+    f[stat]=Math.max(0,Math.min(f[mk]??Infinity,f[stat]+delta));
+    if(stat==='hp'&&f.hp<=0){playSound('dead');showToast(`${f.name} est hors combat !`);}
+    render();
+}
+function setStat(stat,val){
+    const f=getActive();if(!f)return;
+    const mk=stat+'Max';
+    f[stat]=Math.max(0,Math.min(f[mk]??Infinity,parseInt(val)||0));
+    if(stat==='hp'&&f.hp<=0){playSound('dead');showToast(`${f.name} est hors combat !`);}
+    render();
+}
+function healFull(id){
+    const f=fighters.find(x=>x.id===id);if(!f)return;
+    f.hp=f.hpMax;f.shield=f.shieldMax;f.armor=f.armorMax;f.res=f.resMax;
+    showToast(`${f.name} est pleinement rétabli.`);render();
+}
+function toggleStatus(key){
+    const f=getActive();if(!f)return;
+    f.statuses[key].active=!f.statuses[key].active;
+    showToast(`${f.name} — ${STATUS_DEF[key].label} ${f.statuses[key].active?'activé':'retiré'}`);
+    render();
+}
+function updateStatusParam(key,param,val){
+    const f=getActive();if(!f)return;
+    f.statuses[key].params[param]=parseInt(val)||0;
+}
+function updateNotes(val){
+    const f=getActive();if(!f)return;
+    f.notes=val;
+}
+function nextTurn(){
+    playSound('next');
+    const alive=sorted().filter(f=>f.hp>0);
+    if(!alive.length)return;
+    const idx=alive.findIndex(f=>f.id===activeId);
+    if(idx===-1||idx===alive.length-1){round++;activeId=alive[0].id;showToast(`⚔ Round ${round} — Tour de ${alive[0].name}`);}
+    else{activeId=alive[idx+1].id;showToast(`Tour de ${alive[idx+1].name}`);}
+    render();
+}
+function removeFighter(id){
+    playSound('click');
+    const f=fighters.find(x=>x.id===id);
+    fighters=fighters.filter(x=>x.id!==id);
+    if(activeId===id){const s=sorted();activeId=s.length?s[0].id:null;}
+    showToast(f?`${f.name} retiré du combat.`:'Combattant retiré.');render();
+}
+
+// ── MODALE ──
+function openAddModal(){
+    document.getElementById('f-name').value='';
+    ['f-init','f-hp','f-shield','f-armor','f-res'].forEach(id=>{
+        document.getElementById(id).value=id==='f-init'?10:id==='f-hp'?10:0;
+    });
+    selectedType='knight';
+    document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('selected'));
+    document.querySelector('[data-type="knight"]').classList.add('selected');
+    document.getElementById('add-modal').style.display='flex';
+    setTimeout(()=>document.getElementById('f-name').focus(),50);
+}
+function closeAddModal(){document.getElementById('add-modal').style.display='none';}
+function selectType(el){document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('selected'));el.classList.add('selected');selectedType=el.dataset.type;}
+
+function makeStatuses(){
+    const obj={};
+    Object.entries(STATUS_DEF).forEach(([key,def])=>{
+        const params={};def.params.forEach(p=>{params[p.key]=p.def;});
+        obj[key]={active:false,params};
+    });
+    return obj;
+}
+function addFighter(){
+    const name=document.getElementById('f-name').value.trim();
+    if(!name){document.getElementById('f-name').focus();return;}
+    const hp=parseInt(document.getElementById('f-hp').value)||1;
+    const sh=parseInt(document.getElementById('f-shield').value)||0;
+    const ar=parseInt(document.getElementById('f-armor').value)||0;
+    const re=parseInt(document.getElementById('f-res').value)||0;
+    fighters.push({id:crypto.randomUUID(),name,type:selectedType,
+        initiative:parseInt(document.getElementById('f-init').value)||0,
+        hp,hpMax:hp,shield:sh,shieldMax:sh,armor:ar,armorMax:ar,res:re,resMax:re,
+        statuses:makeStatuses(),notes:''});
+    if(!activeId)activeId=sorted()[0]?.id||null;
+    closeAddModal();showToast(`${name} entre en combat !`);playSound('click');render();
+}
+
+function openResetConfirm(){document.getElementById('reset-modal').style.display='flex';}
+function closeResetConfirm(){document.getElementById('reset-modal').style.display='none';}
+function resetCombat(){fighters=[];activeId=null;round=1;closeResetConfirm();showToast('Combat réinitialisé.');render();}
+
+document.addEventListener('keydown',e=>{
+    if(e.key==='Enter'&&document.getElementById('add-modal').style.display==='flex')addFighter();
+    if(e.key==='Escape'){closeAddModal();closeResetConfirm();}
+});
+
+render();
+</script>
+</body>
+</html>
